@@ -15,7 +15,7 @@ async function matchRedirect(pathname: string) {
  * - ?lang=ar|fr : URL alternative (hreflang) -> langue transmise au rendu via un en-tête interne.
  * - Content-Security-Policy avec nonce par requête (scripts inline de Next autorisés par nonce, pas d'unsafe-eval en prod).
  */
-// Liens privés de devis (/devis/suivi, /devis/pdf, /devis/confirmation) : limitation de débit par IP (mémoire du processus).
+// Liens privés (/devis/suivi, /devis/pdf, /devis/confirmation, /commande/confirmation) : limitation de débit par IP (mémoire du processus).
 const privateHits = new Map<string, number[]>();
 function privateLinkAllowed(req: NextRequest) {
   const xff = req.headers.get("x-forwarded-for");
@@ -31,7 +31,7 @@ function privateLinkAllowed(req: NextRequest) {
   if (privateHits.size > 5000) for (const [k, v] of privateHits) if (!v.some((t) => now - t < win)) privateHits.delete(k);
   return ok;
 }
-const PRIVATE_QUOTE = /^\/devis\/(suivi|pdf|confirmation)\//;
+const PRIVATE_QUOTE = /^\/(?:devis\/(?:suivi|pdf|confirmation)|commande\/confirmation)\//;
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;

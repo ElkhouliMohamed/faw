@@ -1,82 +1,56 @@
 import "server-only";
 import { cache } from "react";
-import { prisma } from "./db";
+import { z } from "zod";
 import { CATEGORIES, CATEGORIES as STATIC_CATS, canOrder as canOrderP, type CategoryKey, type Product as P } from "./products";
 import type { PublicCategory, PublicPack, ShopConfig } from "./shop-config";
-import { type ShippingConfig } from "./delivery";
+import type { ShippingConfig } from "./delivery";
+import type { PublicPopup } from "@/components/popups";
 
-// Données « merchandising » éditées au back-office (catégories, badges, promos, packs, livraison…).
-// Cache partagé (globalThis) invalidé à chaque écriture admin ; les pages publiques sont aussi revalidées.
+// Données « merchandising » éditées dans Filament (catégories, badges, garanties, attributs, packs, popups, livraison).
+// Lues par l'API Laravel (/api/shop/merch) : la boutique n'accède jamais directement à la base.
+// Laravel masque déjà les montants (packs, frais de livraison) quand les prix publics sont désactivés.
 
-export type CategoryRow = Awaited<ReturnType<typeof prisma.category.findMany>>[number];
-export type BadgeRow = Awaited<ReturnType<typeof prisma.badge.findMany>>[number];
-export type WarrantyRow = Awaited<ReturnType<typeof prisma.warranty.findMany>>[number];
-export type AttributeRow = Awaited<ReturnType<typeof prisma.attribute.findMany>>[number];
-export type PromotionRow = Awaited<ReturnType<typeof prisma.promotion.findMany>>[number];
-export type BundleRow = Awaited<ReturnType<typeof prisma.bundle.findMany>>[number];
-export type PopupRow = Awaited<ReturnType<typeof prisma.popup.findMany>>[number];
-
-export type Merch = {
-  at: number;
-  categories: CategoryRow[];
-  badges: BadgeRow[];
-  warranties: WarrantyRow[];
-  attributes: AttributeRow[];
-  promotions: PromotionRow[];
-  bundles: BundleRow[];
-  popups: PopupRow[];
-  shipping: ShippingConfig;
-};
-
-const store = globalThis as unknown as { __fawMerch?: Merch | null; __fawMerchSeed?: Promise<void> | null; __fawMerchGen?: number };
-const TTL = 0;
-
-export const merch = cache(async function merch(): Promise<Merch> {
-  const c = store.__fawMerch;
-  if (c && Date.now() - c.at < TTL) return c;
-  // Schema and default categories are now owned by Laravel.
-  // Génération : un chargement commencé avant une modification ne doit pas réécrire le cache après l'invalidation.
-  const gen = store.__fawMerchGen ?? 0;
-  const order = [{ sortOrder: "asc" as const }, { id: "asc" as const }];
-  const [categories, badges, warranties, attributes, promotions, bundles, popups, cities, rules] = await Promise.all([
-    prisma.category.findMany({ orderBy: order }),
-    prisma.badge.findMany({ where: { active: true }, orderBy: order }),
-    prisma.warranty.findMany({ where: { active: true }, orderBy: { id: "asc" } }),
-    prisma.attribute.findMany({ where: { active: true }, orderBy: order }),
-    prisma.promotion.findMany({ where: { active: true }, orderBy: { id: "asc" } }),
-    prisma.bundle.findMany({ where: { active: true }, orderBy: order }),
-    prisma.popup.findMany({ where: { active: true }, orderBy: { id: "asc" } }),
-    prisma.shippingCity.findMany({ where: { active: true }, orderBy: order }),
-    prisma.feeRule.findMany({ where: { active: true }, orderBy: { id: "asc" } }),
-  ]);
-  const m: Merch = {
-    at: Date.now(),
-    categories,
-    badges,
-    warranties,
-    attributes,
-    promotions,
-    bundles,
-    popups,
-    shipping: {
-      cities: cities.map((x) => ({ slug: x.slug, name: x.name, fee: x.fee, available: x.available, delayText: x.delayText })),
-      rules: rules.map((r) => ({ scope: r.scope === "category" ? "category" : "product", target: r.target, city: r.citySlug, mode: r.mode === "devis" ? "devis" : "fixed", fee: r.fee })),
-    },
-  };
-  if ((store.__fawMerchGen ?? 0) === gen) store.__fawMerch = m;
-  return m;
+const str = z.string().nullable().optional().transform((v) => v ?? "");
+const categorySchema = z.object({
+  id: z.number(), parentId: z.number().nullable(), slug: z.string(), label: z.string(), short: str, family: str, description: str,
+  image: z.string().nullable(), seoTitle: str, seoDescription: str, h1: str, active: z.boolean(), warrantyId: z.number().nullable(),
 });
-export function invalidateMerch() {
-  store.__fawMerchGen = (store.__fawMerchGen ?? 0) + 1;
-  store.__fawMerch = null;
-}
+const merchSchema = z.object({
+  showPrices: z.boolean(),
+  categories: z.array(categorySchema),
+  badges: z.array(z.object({ id: z.number(), label: z.string(), tone: z.string() })),
+  warranties: z.array(z.object({ id: z.number(), name: z.string(), text: z.string() })),
+  attributes: z.array(z.object({ key: z.string(), label: z.string(), unit: str, showInSpecs: z.boolean() })),
+  bundles: z.array(z.object({
+    slug: z.string(), title: z.string(), description: str, image: z.string().nullable(), price: z.number().nullable(), orderable: z.boolean(),
+    items: z.array(z.object({ id: z.string(), qty: z.number().int() })),
+  })),
+  popups: z.array(z.object({
+    id: z.number(), v: z.string(), kind: z.enum(["promo", "newsletter", "whatsapp"]), title: z.string(), body: z.string(), ctaLabel: z.string(), ctaUrl: z.string(),
+    trigger: z.enum(["delay", "scroll", "exit"]), delaySeconds: z.number(), scrollPercent: z.number(), paths: z.array(z.string()),
+    frequency: z.enum(["once", "session", "days"]), frequencyDays: z.number(),
+  })),
+  shipping: z.object({
+    cities: z.array(z.object({ slug: z.string(), name: z.string(), fee: z.number().nullable(), available: z.boolean(), delayText: str })),
+    rules: z.array(z.object({ scope: z.enum(["product", "category"]), target: z.string(), city: z.string(), mode: z.enum(["fixed", "devis"]), fee: z.number().nullable() })),
+  }),
+});
 
-export const isLive = (x: { startsAt: Date | null; endsAt: Date | null }, now = Date.now()) =>
-  (!x.startsAt || x.startsAt.getTime() <= now) && (!x.endsAt || x.endsAt.getTime() > now);
+export type CategoryRow = z.infer<typeof categorySchema>;
+export type BundleRow = z.infer<typeof merchSchema>["bundles"][number];
+export type Merch = Omit<z.infer<typeof merchSchema>, "popups" | "shipping"> & { popups: PublicPopup[]; shipping: ShippingConfig };
+
+/** Un seul appel API par rendu (React cache). */
+export const merch = cache(async function merch(): Promise<Merch> {
+  const origin = process.env.LARAVEL_ORIGIN || "http://127.0.0.1:8000";
+  const response = await fetch(`${origin}/api/shop/merch`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new Error("Données boutique temporairement indisponibles");
+  return merchSchema.parse(await response.json());
+});
 
 export const csv = (s: string | null | undefined) => (s ?? "").split(",").map((x) => x.trim()).filter(Boolean);
 
-/** Catégorie DB d'un produit (par libellé) ; famille de repli « incendie » comme avant. */
+/** Catégorie d'un produit (par libellé) ; famille de repli « incendie » comme avant. */
 export function categoryOf(m: Merch, label: string) {
   return m.categories.find((c) => c.label === label) ?? null;
 }
@@ -85,34 +59,6 @@ export function familyOf(m: Merch, label: string): CategoryKey {
   return (CATEGORIES.some((c) => c.key === f) ? f : CATEGORIES.find((c) => c.label === label)?.key ?? "incendie") as CategoryKey;
 }
 
-/** Prix actif après promotions en cours (la meilleure pour le client), jamais sous 1 DH. */
-export function promoPrice(m: Merch, p: { id: string; price: number; category: string }, now = Date.now()) {
-  if (p.price <= 0) return null;
-  const slug = categoryOf(m, p.category)?.slug;
-  let best: { price: number; name: string } | null = null;
-  for (const pr of m.promotions) {
-    if (!isLive(pr, now) || pr.value <= 0) continue;
-    const t = csv(pr.targets);
-    const hit = pr.scope === "all" || (pr.scope === "product" && t.includes(p.id)) || (pr.scope === "category" && !!slug && t.includes(slug));
-    if (!hit) continue;
-    const price = Math.max(1, pr.kind === "percent" ? Math.round((p.price * (100 - Math.min(pr.value, 90))) / 100) : p.price - pr.value);
-    if (price < p.price && (!best || price < best.price)) best = { price, name: pr.name };
-  }
-  return best;
-}
-
-export type BundleItem = { id: string; qty: number };
-export function bundleItems(b: { items: string }): BundleItem[] {
-  try {
-    const v = JSON.parse(b.items) as unknown;
-    if (!Array.isArray(v)) return [];
-    return v
-      .map((x) => ({ id: String((x as BundleItem).id ?? ""), qty: Math.max(1, Math.min(99, Math.trunc(Number((x as BundleItem).qty) || 1))) }))
-      .filter((x) => x.id);
-  } catch {
-    return [];
-  }
-}
 export function parseAttributes(s: string | null | undefined): Record<string, string> {
   try {
     const v = JSON.parse(s || "{}") as unknown;
@@ -168,18 +114,18 @@ export function publicCategories(m: Merch): PublicCategory[] {
 export function publicPacks(m: Merch, products: P[]): PublicPack[] {
   const out: PublicPack[] = [];
   for (const b of m.bundles) {
-    const items = bundleItems(b);
-    const comps = items.map((it) => ({ it, p: products.find((x) => x.id === it.id) }));
+    const comps = b.items.map((it) => ({ it, p: products.find((x) => x.id === it.id) }));
     if (!comps.length || comps.some((c) => !c.p)) continue;
     const first = comps[0].p!;
+    const price = b.price ?? 0;
     const sum = comps.reduce((s, c) => s + c.p!.price * c.it.qty, 0);
-    const orderable = comps.every((c) => canOrderP(c.p!)) && b.price > 0;
+    const orderable = comps.every((c) => canOrderP(c.p!)) && b.orderable;
     out.push({
       slug: b.slug,
       title: b.title,
       description: b.description,
       image: b.image ?? first.image,
-      price: b.price,
+      price,
       compareAt: sum,
       items: comps.map((c) => ({ id: c.it.id, qty: c.it.qty, title: c.p!.title })),
       product: {
@@ -187,7 +133,7 @@ export function publicPacks(m: Merch, products: P[]): PublicPack[] {
         slug: `packs#${b.slug}`,
         title: `Pack ${b.title}`,
         description: b.description,
-        price: b.price,
+        price,
         image: b.image ?? first.image,
         cat: familyOf(m, first.category),
         catSlug: "packs",
@@ -216,17 +162,4 @@ export async function shopConfig(products: P[], showPrices = false): Promise<Sho
     showPrices ? b : { ...b, price: undefined, compareAt: undefined, product: { ...b.product, price: undefined, compareAt: null } },
   );
   return { showPrices, shipping, categories: publicCategories(m), packs };
-}
-
-/** Garanties distinctes applicables aux lignes d'un devis (vide tant qu'aucune garantie n'est saisie). */
-export async function warrantiesForIds(ids: string[]): Promise<{ name: string; text: string }[]> {
-  const m = await merch();
-  if (!m.warranties.length || !ids.length) return [];
-  const rows = await prisma.product.findMany({ where: { id: { in: [...new Set(ids)].slice(0, 100) } }, select: { warrantyId: true, category: true } });
-  const out = new Map<string, { name: string; text: string }>();
-  for (const r of rows) {
-    const w = warrantyFor(m, r);
-    if (w) out.set(w.name + "\n" + w.text, w);
-  }
-  return [...out.values()];
 }

@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Additive: immutable quote versions + per-version email deliveries.
  * Existing validated/sent quotes get their version 1 rebuilt from the data already stored on Quote (no PDF regenerated).
- * The frozen columns are protected by SQLite triggers (no UPDATE of content, no DELETE).
+ * The frozen columns are protected by database triggers (no UPDATE of content, no DELETE) on PostgreSQL and SQLite.
  */
 return new class extends Migration
 {
@@ -71,15 +71,44 @@ return new class extends Migration
             Schema::table('Quote', fn (Blueprint $t) => $t->string('versionNumber', 64)->nullable());
         }
 
-        if (DB::getDriverName() === 'sqlite') {
-            $cols = implode(', ', self::FROZEN);
-            DB::statement('DROP TRIGGER IF EXISTS quote_versions_frozen');
-            DB::statement("CREATE TRIGGER quote_versions_frozen BEFORE UPDATE OF {$cols} ON quote_versions BEGIN SELECT RAISE(ABORT, 'quote version is immutable'); END");
-            DB::statement('DROP TRIGGER IF EXISTS quote_versions_no_delete');
-            DB::statement("CREATE TRIGGER quote_versions_no_delete BEFORE DELETE ON quote_versions BEGIN SELECT RAISE(ABORT, 'quote version is immutable'); END");
-        }
+        $this->protectFrozenColumns();
 
         $this->backfill();
+    }
+
+    /** Database-level immutability: any UPDATE touching a frozen column, or any DELETE, aborts with "quote version is immutable". */
+    private function protectFrozenColumns(): void
+    {
+        $this->dropTriggers();
+        $cols = implode(', ', self::FROZEN);
+        if (DB::getDriverName() === 'pgsql') {
+            DB::unprepared(<<<'SQL'
+                CREATE OR REPLACE FUNCTION quote_versions_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    RAISE EXCEPTION 'quote version is immutable';
+                END;
+                $$;
+                SQL);
+            DB::unprepared("CREATE TRIGGER quote_versions_frozen BEFORE UPDATE OF {$cols} ON quote_versions FOR EACH ROW EXECUTE FUNCTION quote_versions_immutable()");
+            DB::unprepared('CREATE TRIGGER quote_versions_no_delete BEFORE DELETE ON quote_versions FOR EACH ROW EXECUTE FUNCTION quote_versions_immutable()');
+        } elseif (DB::getDriverName() === 'sqlite') {
+            DB::statement("CREATE TRIGGER quote_versions_frozen BEFORE UPDATE OF {$cols} ON quote_versions BEGIN SELECT RAISE(ABORT, 'quote version is immutable'); END");
+            DB::statement("CREATE TRIGGER quote_versions_no_delete BEFORE DELETE ON quote_versions BEGIN SELECT RAISE(ABORT, 'quote version is immutable'); END");
+        }
+    }
+
+    private function dropTriggers(): void
+    {
+        if (DB::getDriverName() === 'pgsql') {
+            if (Schema::hasTable('quote_versions')) {
+                DB::statement('DROP TRIGGER IF EXISTS quote_versions_frozen ON quote_versions');
+                DB::statement('DROP TRIGGER IF EXISTS quote_versions_no_delete ON quote_versions');
+            }
+            DB::statement('DROP FUNCTION IF EXISTS quote_versions_immutable()');
+        } elseif (DB::getDriverName() === 'sqlite') {
+            DB::statement('DROP TRIGGER IF EXISTS quote_versions_frozen');
+            DB::statement('DROP TRIGGER IF EXISTS quote_versions_no_delete');
+        }
     }
 
     private function backfill(): void
@@ -133,8 +162,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::statement('DROP TRIGGER IF EXISTS quote_versions_frozen');
-        DB::statement('DROP TRIGGER IF EXISTS quote_versions_no_delete');
+        $this->dropTriggers();
         Schema::dropIfExists('quote_version_emails');
         Schema::dropIfExists('quote_versions');
         if (Schema::hasColumn('Quote', 'versionNumber')) {

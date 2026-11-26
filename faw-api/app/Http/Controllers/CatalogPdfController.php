@@ -6,6 +6,8 @@ use App\Models\Attribute;
 use App\Models\Product;
 use App\Services\CommerceService;
 use App\Services\PriceVisibility;
+use Symfony\Component\Process\Exception\ProcessFailedException;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 class CatalogPdfController extends Controller
@@ -32,7 +34,14 @@ class CatalogPdfController extends Controller
             file_put_contents($tmp, json_encode($rows, JSON_UNESCAPED_UNICODE));
             $process = new Process([config('faw.python'), base_path('scripts/catalog_pdf.py'), $tmp, $out]);
             $process->setTimeout(30);
-            $process->mustRun();
+            try {
+                $process->mustRun();
+            } catch (ProcessFailedException|ProcessTimedOutException $e) {
+                // Python or reportlab missing on this machine: answer 503 instead of a raw 500.
+                report($e);
+
+                return response()->json(['error' => 'Catalogue PDF momentanément indisponible.'], 503)->header('Cache-Control', 'no-store');
+            }
             $bytes = file_get_contents($out);
 
             return response($bytes)->header('Content-Type', 'application/pdf')->header('Content-Disposition', 'attachment; filename="Catalogue-FAW.pdf"')->header('Cache-Control', 'no-store');

@@ -26,7 +26,12 @@ abstract class ShopModel extends Model
                     $m->setAttribute($name, now());
                 }
                 if ($m->getAttribute($name) === null && ! $column['nullable'] && in_array(strtolower($column['type_name']), ['text', 'varchar']) && $column['default'] !== null && $name !== $m->getKeyName()) {
-                    $default = trim($column['default'], "'\"");
+                    $default = (string) $column['default'];
+                    // PostgreSQL reports text defaults as 'value'::text (or ::character varying).
+                    if (preg_match("/^'(.*)'::[a-z ]+$/s", $default, $literal)) {
+                        $default = str_replace("''", "'", $literal[1]);
+                    }
+                    $default = trim($default, "'\"");
                     if (in_array($m->getCasts()[$name] ?? null, ['array', 'json', 'object'], true)) {
                         $default = json_decode($default, true);
                     }

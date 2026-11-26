@@ -17,7 +17,7 @@ class Funnel extends StatsOverviewWidget
 
     protected function getStats(): array
     {
-        $counts = DB::table('Event')->whereRaw("CASE WHEN typeof(at)='integer' THEN CAST(at AS INTEGER)/1000 ELSE CAST(strftime('%s',at) AS INTEGER) END >= ?", [now()->subDays(30)->timestamp])->selectRaw('type,COUNT(*) as n')->groupBy('type')->pluck('n', 'type');
+        $counts = DB::table('Event')->where('at', '>=', now()->subDays(30)->getTimestampMs())->select('type')->selectRaw('COUNT(*) as n')->groupBy('type')->pluck('n', 'type');
 
         return [Stat::make('Vues (événements, pas visiteurs uniques)', $counts['view'] ?? 0), Stat::make('Ajouts panier', $counts['add_to_cart'] ?? 0), Stat::make('Demandes de devis', $counts['quote_request'] ?? 0), Stat::make('Commandes soumises', $counts['order'] ?? 0)];
     }

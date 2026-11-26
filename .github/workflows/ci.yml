@@ -117,6 +117,28 @@ jobs:
     defaults:
       run:
         working-directory: faw-api
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: faw
+          POSTGRES_PASSWORD: faw_ci_password
+          POSTGRES_DB: faw_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U faw -d faw_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Base PostgreSQL jetable du service ci-dessus (mot de passe propre au CI, sans valeur réelle).
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_DATABASE: faw_test
+      DB_USERNAME: faw
+      DB_PASSWORD: faw_ci_password
     steps:
       - name: Récupérer le dépôt
         uses: actions/checkout@v4
@@ -125,7 +147,8 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
-          extensions: mbstring, intl, pdo_sqlite, sqlite3, tokenizer, xml, ctype, json, fileinfo
+          extensions: mbstring, intl, pdo_pgsql, pgsql, pdo_sqlite, sqlite3, tokenizer, xml, ctype, json, fileinfo
+          ini-values: memory_limit=1G
           coverage: none
           tools: composer:v2
 
@@ -143,10 +166,12 @@ jobs:
       - name: Vérifier la syntaxe PHP
         run: bash scripts/php-lint.sh
 
-      - name: Migrer une base SQLite jetable
+      - name: Migrer PostgreSQL (aller-retour) et une base SQLite jetable (portabilité)
         run: |
           cp .env.example .env
           php artisan key:generate --force --no-interaction
+          php artisan migrate --force --no-interaction
+          php artisan migrate:rollback --force --no-interaction
           : > /tmp/faw-ci-migrate.sqlite
           DB_CONNECTION=sqlite DB_DATABASE=/tmp/faw-ci-migrate.sqlite \
             php artisan migrate --force --no-interaction

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ProductCard } from "@/components/product-card";
-import type { Block } from "@/lib/admin/crud-types";
+import type { Block } from "@/lib/blocks";
 import { getDict } from "@/lib/i18n-server";
 import { toPublic, type Product } from "@/lib/products";
 import { stripPriceMentions } from "@/lib/format";

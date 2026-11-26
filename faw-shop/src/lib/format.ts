@@ -14,3 +14,6 @@ export function stripPriceMentions(text: string | null | undefined): string {
   const out = text.replace(/(?:prix(?:\s+ttc)?)?\s*[:\-]?\s*\d(?:[\d\s\u00a0\u202f]|\d)*(?:[.,]\d+)?\s*(?:DH|MAD)(?:\s*TTC)?/gi, "Prix sur devis");
   return out.replace(/(?:\s*Prix sur devis){2,}/g, " Prix sur devis").replace(/[ ]{2,}/g, " ").trim();
 }
+
+/** Date et heure à Casablanca (pages client). */
+export const fmtDateTime = new Intl.DateTimeFormat("fr-MA", { dateStyle: "short", timeStyle: "short", timeZone: "Africa/Casablanca" });

@@ -2,11 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CheckCircle2, Clock, Download, FileText, Lock } from "lucide-react";
 import { WhatsAppIcon } from "@/components/icons";
-import { findQuoteByToken } from "@/lib/quote-token";
-import { fmtDateTime } from "@/lib/crm";
-import { formatDH, stripPriceMentions } from "@/lib/format";
-import { privateLink, publicBaseUrl } from "@/lib/quote-email";
-import { warrantiesForIds } from "@/lib/merch";
+import { shopQuote } from "@/lib/shop-api";
+import { fmtDateTime, formatDH, stripPriceMentions } from "@/lib/format";
+import { privateLink, publicBaseUrl } from "@/lib/quote-link";
 import { waLink } from "@/lib/site";
 import { CopyLink } from "./copy-link";
 import { QuoteLead } from "@/components/tracking";
@@ -15,21 +13,19 @@ import { getPortal } from "@/lib/portal";
 import { PortalView } from "./portal/portal-view";
 import { PortalOrderView } from "./portal/portal-order";
 
-type Line = { id: string; title: string; qty: number; unit: number; total: number; tier?: boolean };
-
 import { QUOTE_TOKEN_RE as TOKEN_RE } from "@/lib/devis";
 
 /** Page client d'un devis, accessible uniquement par son jeton privé. Débloquée dès la validation par l'équipe. */
 export async function QuoteView({ token, mode }: { token: string; mode: "confirmation" | "suivi" }) {
   if (!TOKEN_RE.test(token)) notFound();
-  const q = await findQuoteByToken(token);
+  // Lu par l'API Laravel (lien actif uniquement) ; les montants ne sont envoyés qu'une fois le devis validé.
+  const q = await shopQuote(token);
   if (!q) notFound();
-  let lines: Line[] = [];
-  try {
-    lines = JSON.parse(q.lines);
-  } catch {}
-  const warranties = await warrantiesForIds(lines.map((l) => l.id)).catch(() => []);
-  const ready = (q.status === "validé" || q.status === "envoyé") && !!q.pdfFile && !!q.number;
+  const lines = q.lines;
+  const warranties = q.warranties;
+  const ready = q.ready && !!q.number;
+  const totalTtc = q.totalTtc ?? 0;
+  const totalHt = q.totalHt ?? 0;
   const refused = q.status === "refusé";
   const link = privateLink(await publicBaseUrl(), token);
   const pdf = `/devis/pdf/${token}`;
@@ -57,7 +53,7 @@ export async function QuoteView({ token, mode }: { token: string; mode: "confirm
         <>
           <p className="eyebrow mt-4">Devis N° <span data-testid="quote-number">{q.versionNumber ?? q.number}</span></p>
           <h1 className="mt-2 text-d2">Votre devis est prêt</h1>
-          <p className="mt-3 text-lg">Validé par l&apos;équipe FAW. Total TTC : <strong className="tnum" data-testid="quote-total-head">{formatDH(q.totalTtc)}</strong>.</p>
+          <p className="mt-3 text-lg">Validé par l&apos;équipe FAW. Total TTC : <strong className="tnum" data-testid="quote-total-head">{formatDH(totalTtc)}</strong>.</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <a href={`${pdf}?dl=1`} className="btn btn-primary" data-testid="quote-download" download>
               <Download className="size-4" aria-hidden /> Télécharger le PDF
@@ -76,7 +72,7 @@ export async function QuoteView({ token, mode }: { token: string; mode: "confirm
         <>
           <h1 className="mt-4 text-d2">{mode === "confirmation" ? "Demande reçue" : "Demande en cours de validation"}</h1>
           <p className="mt-3 text-lg" data-testid="quote-pending">Votre demande de devis est enregistrée, notre équipe la vérifie avant de vous envoyer le devis.</p>
-          <p className="mt-2 text-sm text-muted-foreground">Demande du {fmtDateTime.format(q.createdAt)} (heure du Maroc) au nom de <strong className="text-foreground">{q.clientName}</strong>.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Demande du {q.createdAt ? fmtDateTime.format(new Date(q.createdAt)) : "—"} (heure du Maroc) au nom de <strong className="text-foreground">{q.clientName}</strong>.</p>
         </>
       )}
 
@@ -108,18 +104,18 @@ export async function QuoteView({ token, mode }: { token: string; mode: "confirm
               <tr key={l.id} className="border-t border-rule">
                 <td className="px-4 py-3">
                   {l.title}
-                  {ready && <span className="block text-xs text-muted-foreground">{formatDH(l.unit)} TTC l&apos;unité{l.tier ? " (tarif dès 4 portes)" : ""}</span>}
+                  {ready && <span className="block text-xs text-muted-foreground">{formatDH(l.unit ?? 0)} TTC l&apos;unité{l.tier ? " (tarif dès 4 portes)" : ""}</span>}
                 </td>
                 <td className="px-2 py-3 text-end tnum">{l.qty}</td>
-                {ready && <td className="px-4 py-3 text-end tnum">{formatDH(l.total)}</td>}
+                {ready && <td className="px-4 py-3 text-end tnum">{formatDH(l.total ?? 0)}</td>}
               </tr>
             ))}
           </tbody>
           {ready && (
             <tfoot className="border-t border-rule">
-              <tr><td colSpan={2} className="px-4 pt-3 text-muted-foreground">Total HT</td><td className="px-4 pt-3 text-end tnum">{formatDH(Math.round(q.totalHt))}</td></tr>
-              <tr><td colSpan={2} className="px-4 text-muted-foreground">TVA 20 %</td><td className="px-4 text-end tnum">{formatDH(Math.round(q.totalTtc - q.totalHt))}</td></tr>
-              <tr className="font-semibold"><td colSpan={2} className="px-4 pb-3">Total TTC</td><td className="px-4 pb-3 text-end tnum" data-testid="quote-total">{formatDH(q.totalTtc)}</td></tr>
+              <tr><td colSpan={2} className="px-4 pt-3 text-muted-foreground">Total HT</td><td className="px-4 pt-3 text-end tnum">{formatDH(Math.round(totalHt))}</td></tr>
+              <tr><td colSpan={2} className="px-4 text-muted-foreground">TVA 20 %</td><td className="px-4 text-end tnum">{formatDH(Math.round(totalTtc - totalHt))}</td></tr>
+              <tr className="font-semibold"><td colSpan={2} className="px-4 pb-3">Total TTC</td><td className="px-4 pb-3 text-end tnum" data-testid="quote-total">{formatDH(totalTtc)}</td></tr>
             </tfoot>
           )}
         </table>

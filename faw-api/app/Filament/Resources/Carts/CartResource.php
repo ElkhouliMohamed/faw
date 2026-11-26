@@ -41,7 +41,7 @@ class CartResource extends OwnerResource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->where('itemCount', '>', 0)->where('status', '!=', 'récupéré')->whereRaw("CASE WHEN typeof(updatedAt)='integer' THEN CAST(updatedAt AS INTEGER)/1000 ELSE CAST(strftime('%s',updatedAt) AS INTEGER) END <= ?", [now()->subMinutes(30)->timestamp]);
+        return parent::getEloquentQuery()->where('itemCount', '>', 0)->where('status', '!=', 'récupéré')->where('updatedAt', '<=', now()->subMinutes(30)->getTimestampMs()); // epoch milliseconds
     }
 
     public static function form(Schema $schema): Schema

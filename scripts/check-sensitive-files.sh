@@ -7,6 +7,7 @@ allow_sql() {
   case "$1" in
     faw-api/database/legacy-schema.sql) return 0 ;;
     database/legacy-schema.sql) return 0 ;;
+    docker/postgres/initdb/*.sql) return 0 ;; # scripts d'initialisation du conteneur de dev, sans donnée
     *) return 1 ;;
   esac
 }

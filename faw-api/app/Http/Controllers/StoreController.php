@@ -31,7 +31,7 @@ class StoreController extends Controller
     protected function publicProduct(Product $p): array
     {
         $priced = app(CommerceService::class)->productPrice($p);
-        $row = [...$p->only(['id', 'slug', 'title', 'seoTitle', 'description', 'shortDescription', 'price', 'category', 'brand', 'image', 'availability', 'stockQty', 'priceToConfirm', 'stockToConfirm', 'variantGroup', 'variantLabel', 'sortOrder', 'active', 'metaTitle', 'metaDescription', 'h1', 'attributes', 'badges', 'warrantyId', 'details', 'installationGuide', 'datasheet', 'maintenanceGuide']), 'stockNote' => null, 'basePrice' => $p->price, ...$priced, 'orderable' => PriceVisibility::orderable($p, (int) ($priced['price'] ?? $p->price))];
+        $row = [...$p->only(['id', 'slug', 'title', 'seoTitle', 'description', 'shortDescription', 'price', 'category', 'brand', 'image', 'availability', 'stockQty', 'priceToConfirm', 'stockToConfirm', 'variantGroup', 'variantLabel', 'sortOrder', 'active', 'metaTitle', 'metaDescription', 'h1', 'attributes', 'badges', 'warrantyId', 'details', 'installationGuide', 'datasheet', 'maintenanceGuide']), 'stockNote' => null, 'updatedAt' => $p->updatedAt?->toIso8601String(), 'basePrice' => $p->price, ...$priced, 'orderable' => PriceVisibility::orderable($p, (int) ($priced['price'] ?? $p->price))];
 
         return PriceVisibility::sanitizeProduct($row);
     }

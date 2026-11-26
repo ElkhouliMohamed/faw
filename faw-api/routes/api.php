@@ -8,6 +8,7 @@ use App\Http\Controllers\PaymentWebhookController;
 use App\Http\Controllers\PortalController;
 use App\Http\Controllers\PublicConfigController;
 use App\Http\Controllers\RedirectController;
+use App\Http\Controllers\Shop\ShopDataController;
 use App\Http\Controllers\StoreController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,7 +19,17 @@ Route::middleware('throttle:1200,1,faw-catalog')->group(function () {
     Route::get('/products', [StoreController::class, 'catalog']);
     Route::get('/products/{slug}', [StoreController::class, 'product']);
     Route::get('/categories', [StoreController::class, 'categories']);
+    // Boutique Next (lecture seule, aucun accès direct à la base côté Next) : merchandising et landing pages.
+    Route::get('/shop/merch', [ShopDataController::class, 'merch']);
+    Route::get('/shop/landings', [ShopDataController::class, 'landings']);
+    Route::get('/shop/landings/{slug}', [ShopDataController::class, 'landing'])->where('slug', '[a-z0-9-]{1,60}');
 });
+// Pages privées de la boutique (jeton de devis / numéro de commande aléatoire) : jamais de liste, réponses no-store.
+Route::middleware('throttle:120,1,faw-shop-private')->group(function () {
+    Route::get('/shop/quotes/{token}', [ShopDataController::class, 'quote'])->where('token', '[A-Za-z0-9_-]{32}');
+    Route::get('/shop/orders/{number}', [ShopDataController::class, 'order'])->where('number', 'FAW-[0-9]{6}-[0-9A-F]{32}');
+});
+Route::post('/shop/coupons/check', [ShopDataController::class, 'coupon'])->middleware('throttle:60,1,faw-shop-coupon');
 // Devis et commandes : limites inchangées (120/min global + 10/min écriture, 30/min liens privés).
 Route::middleware('throttle:120,1,faw-read')->group(function () {
     Route::middleware('throttle:10,1,faw-write')->group(function () {

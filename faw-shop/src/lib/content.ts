@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { parseBlocks } from "./admin/blocks";
+import { parseBlocks } from "./blocks";
 const contentSchema=z.object({kind:z.enum(["home","page","technology","blog"]),slug:z.string(),title:z.string(),excerpt:z.string().nullable(),bodyHtml:z.string().nullable(),blocks:z.array(z.unknown()),image:z.string().nullable(),seoTitle:z.string().nullable(),seoDescription:z.string().nullable(),publishedAt:z.string().nullable(),updated_at:z.string(),featuredProductId:z.string().nullable(),ctaLabel:z.string().nullable(),ctaUrl:z.string().nullable(),defaultSections:z.boolean()});
 export type ContentPage=z.infer<typeof contentSchema>;
 const origin=()=>process.env.LARAVEL_ORIGIN||"http://127.0.0.1:8000";

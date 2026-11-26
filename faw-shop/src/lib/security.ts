@@ -7,7 +7,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 const PROCESS_SECRET = randomBytes(32).toString("hex");
 function secret() {
-  return process.env.FORM_SECRET || process.env.ADMIN_SESSION_SECRET || PROCESS_SECRET;
+  return process.env.FORM_SECRET || PROCESS_SECRET;
 }
 
 /** IP du client. Derrière un proxy de confiance (TRUST_PROXY=1), dernier saut de X-Forwarded-For. */

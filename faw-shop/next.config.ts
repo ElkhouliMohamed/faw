@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
     // Protection CSRF native de Next (Origin == Host) ; tunnels d'aperçu autorisés explicitement.
     serverActions: {
       allowedOrigins: ["*.trycloudflare.com", "*.ngrok-free.dev", ...extraOrigins],
-      bodySizeLimit: "6mb", // upload photo produit (5 Mo max, vérifié côté serveur)
+      bodySizeLimit: "6mb", // justificatif de virement du portail client (5 Mo max, vérifié par Laravel)
     },
   },
   // Anciennes URL (site Framer faw.ma + variantes) -> nouvelles pages, en 301.

@@ -1,0 +1,54 @@
+# Local development services for FAW Aluminium (see DEV-SETUP.md).
+# Laravel (php artisan serve :8000) and Next.js (:3100) run on the host.
+# Dev-only credentials: never reuse them in staging or production.
+name: faw
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${FAW_DB_DATABASE:-faw}
+      POSTGRES_USER: ${FAW_DB_USERNAME:-faw}
+      POSTGRES_PASSWORD: ${FAW_DB_PASSWORD:-faw_dev_password}
+      TZ: UTC
+    ports:
+      # Host port 5433: avoids a native PostgreSQL install already listening on 5432.
+      - "${FAW_DB_PORT:-5433}:5432"
+    volumes:
+      - faw-postgres:/var/lib/postgresql/data
+      # Creates the faw_test database used by phpunit (runs only on first start of an empty volume).
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${FAW_REDIS_PORT:-6379}:6379"
+    volumes:
+      - faw-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    restart: unless-stopped
+    ports:
+      - "${FAW_MAIL_SMTP_PORT:-1025}:1025"
+      - "${FAW_MAIL_UI_PORT:-8025}:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+volumes:
+  faw-postgres:
+  faw-redis:

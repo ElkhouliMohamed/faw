@@ -29,6 +29,7 @@ build/
 *.sql.gz
 *.sql
 !faw-api/database/legacy-schema.sql
+!docker/postgres/initdb/*.sql
 
 # Devis clients, journaux et uploads locaux
 **/data/devis/

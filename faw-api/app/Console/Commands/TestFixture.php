@@ -19,12 +19,12 @@ class TestFixture extends Command
 {
     protected $signature = 'faw:test-fixture';
 
-    protected $description = 'Catalogue synthétique pour le test HTTP isolé (/tmp seulement)';
+    protected $description = 'Catalogue synthétique pour le test HTTP isolé (base de test seulement)';
 
     public function handle(): int
     {
-        if (! app()->environment('testing') || ! str_starts_with(config('database.connections.sqlite.database'), '/tmp/')) {
-            $this->error('Réservé à une base de test /tmp.');
+        if (! app()->environment('testing') || ! self::isolatedTestDatabase()) {
+            $this->error('Réservé à une base de test isolée (PostgreSQL dont le nom finit par _test, ou SQLite dans /tmp).');
 
             return 1;
         }
@@ -47,5 +47,18 @@ class TestFixture extends Command
         ContentPage::create(['kind' => 'home', 'slug' => 'accueil', 'title' => 'Accueil HTTP', 'excerpt' => 'Bannière modifiée depuis le CMS de test.', 'featuredProductId' => 'CF-EI60-90', 'published' => true, 'blocks' => [['type' => 'text', 'title' => 'Section accueil HTTP', 'body' => 'Section de test.']]]);
 
         return 0;
+    }
+
+    /** Never seed a real database: PostgreSQL database named *_test, or a SQLite file under /tmp. */
+    private static function isolatedTestDatabase(): bool
+    {
+        $connection = config('database.default');
+        $database = (string) config("database.connections.{$connection}.database");
+
+        return match (config("database.connections.{$connection}.driver")) {
+            'pgsql' => (bool) preg_match('/_test$/', $database),
+            'sqlite' => str_starts_with($database, '/tmp/'),
+            default => false,
+        };
     }
 }

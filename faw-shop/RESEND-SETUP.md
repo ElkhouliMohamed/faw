@@ -1,5 +1,7 @@
 # Activer l'envoi automatique des devis par e-mail (Resend)
 
+> L'envoi des devis est géré par Laravel (Filament › Devis) : la clé et l'expéditeur se renseignent dans l'environnement privé de `faw-api`, jamais dans la boutique Next.
+
 Une fois ces étapes faites, le client qui a donné son e-mail reçoit son devis dès que l'équipe clique sur « Valider ».
 Sans ces étapes, rien ne change : le devis s'envoie à la main (WhatsApp / PDF).
 

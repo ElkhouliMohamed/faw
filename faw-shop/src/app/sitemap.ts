@@ -2,7 +2,7 @@ import {publicConfig} from "@/lib/public-config";
 import {z} from "zod";
 import type { MetadataRoute } from "next";
 import { allProducts } from "@/lib/catalog";
-import { prisma } from "@/lib/db";
+import { shopLandings } from "@/lib/shop-api";
 import { categoryTree } from "@/lib/category-tree";
 import { SITE } from "@/lib/site";
 
@@ -24,8 +24,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const cats = (await categoryTree()).map((c) => entry(c.path, c.parentId == null ? 0.9 : 0.85));
   const products = (await allProducts()).map((p) => entry(`/produits/${p.slug}`, 0.8, p.updatedAt));
   const extra = [entry("/packs", 0.6)];
-  const landings = (await prisma.landingPage.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } }).catch(() => [])).map((l) => ({
-    url: `${origin}/l/${l.slug}`, changeFrequency: "weekly" as const, priority: 0.6, lastModified: l.updatedAt,
+  const landings = (await shopLandings()).map((l) => ({
+    url: `${origin}/l/${l.slug}`, changeFrequency: "weekly" as const, priority: 0.6, ...(l.updatedAt ? { lastModified: new Date(l.updatedAt) } : {}),
   }));
   const response=await fetch(`${process.env.LARAVEL_ORIGIN||"http://127.0.0.1:8000"}/api/content-links`,{cache:"no-store"}).catch(()=>null);
   const links=response?.ok?z.array(z.object({kind:z.enum(["page","technology","blog"]),slug:z.string(),updated_at:z.string()})).parse(await response.json()):[];

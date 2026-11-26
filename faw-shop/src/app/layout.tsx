@@ -12,7 +12,7 @@ import { SiteBot } from "@/components/site-bot";
 import { getDict } from "@/lib/i18n-server";
 import { SITE, runtimeEnv } from "@/lib/site";
 import { allProducts } from "@/lib/catalog";
-import { isLive, merch, shopConfig } from "@/lib/merch";
+import { merch, shopConfig } from "@/lib/merch";
 import { stripPriceMentions } from "@/lib/format";
 import { Popups, type PublicPopup } from "@/components/popups";
 import { toPublic } from "@/lib/products";
@@ -69,13 +69,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const shop = await shopConfig(products, showPrices);
   const [tree, posts] = await Promise.all([categoryTree(), blogPosts(undefined, undefined, 1).catch(() => ({ data: [] as unknown[] }))]);
   const footerCats = tree.filter((c) => c.parentId == null).map((c) => ({ path: c.path, label: c.label }));
-  const popups: PublicPopup[] = (await merch()).popups.filter((p) => isLive(p)).map((p) => ({
-    id: p.id, v: String(p.updatedAt.getTime()), kind: (["promo", "newsletter", "whatsapp"].includes(p.kind) ? p.kind : "promo") as PublicPopup["kind"],
-    title: p.title, body: p.body, ctaLabel: p.ctaLabel, ctaUrl: /^(\/(?!\/)|https:\/\/)/.test(p.ctaUrl) ? p.ctaUrl : "",
-    trigger: (["delay", "scroll", "exit"].includes(p.trigger) ? p.trigger : "delay") as PublicPopup["trigger"],
-    delaySeconds: p.delaySeconds, scrollPercent: p.scrollPercent, paths: p.paths.split(",").map((x) => x.trim()).filter((x) => x.startsWith("/")),
-    frequency: (["once", "session", "days"].includes(p.frequency) ? p.frequency : "session") as PublicPopup["frequency"], frequencyDays: p.frequencyDays,
-  }));
+  // Popups actifs et en cours (filtrés et nettoyés par Laravel).
+  const popups: PublicPopup[] = (await merch()).popups;
   return (
     <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} suppressHydrationWarning data-faw-accent={config?.theme.accent || "copper"} className={`${vietnam.variable} ${arabic.variable} ${config?.theme.mode === "dark" ? "dark" : ""}`}>
       <body className="min-h-dvh bg-background font-sans text-foreground antialiased">

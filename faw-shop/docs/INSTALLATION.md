@@ -15,9 +15,9 @@ cp .env.example .env.local
 chmod 600 .env.local
 ```
 
-Renseigner au minimum `LARAVEL_ORIGIN` (ex. `http://127.0.0.1:8000`). Laisser les secrets vides tant qu’ils n’ont pas été fournis par le propriétaire. Les chemins `DEVIS_*` ne sont nécessaires que si ce poste génère des PDF de devis.
+Renseigner au minimum `LARAVEL_ORIGIN` (ex. `http://127.0.0.1:8000`). Laisser les secrets vides tant qu’ils n’ont pas été fournis par le propriétaire.
 
-Ne pas lancer `prisma db push` ni de migration Prisma sur la base Laravel.
+La vitrine n’a aucune base de données : catalogue, contenus, devis et commandes passent tous par l’API Laravel. Le back-office est Filament (`/admin`, relayé vers Laravel).
 
 ## Lancer la vitrine
 
@@ -44,4 +44,4 @@ npm run build
 bash scripts/check-sensitive-files.sh
 ```
 
-Les parcours Playwright (`npm run e2e`) sont optionnels, isolés, et ne doivent jamais cibler le vrai journal de devis ni envoyer un e-mail réel.
+Les contrôles HTTP (`bash scripts/run-http-integration.sh`) sont optionnels, isolés, et ne doivent jamais cibler le vrai journal de devis ni envoyer un e-mail réel.

@@ -19,10 +19,10 @@ return new class extends Migration
                 $table->string('tokenHash', 64)->nullable();
             }
             if (! Schema::hasColumn('Quote', 'tokenExpiresAt')) {
-                $table->dateTime('tokenExpiresAt')->nullable();
+                $table->bigInteger('tokenExpiresAt')->nullable(); // epoch milliseconds (ShopTimestamp)
             }
             if (! Schema::hasColumn('Quote', 'tokenRevokedAt')) {
-                $table->dateTime('tokenRevokedAt')->nullable();
+                $table->bigInteger('tokenRevokedAt')->nullable(); // epoch milliseconds (ShopTimestamp)
             }
         });
         if (! $this->hasTokenHashIndex()) {

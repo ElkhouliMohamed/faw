@@ -22,5 +22,5 @@ Le catalogue, les devis et le paiement (désactivé) passent par l’API. `LARAV
 - Aucun prix sur les pages publiques, le panier public, le JSON-LD ou les événements d’analytics (identifiant et nom d’article seulement).
 - Ne jamais écrire « portes de secours », ni promettre des délais, ni afficher EI120 ou « normes européennes » non validés.
 - Ne jamais nommer un fournisseur ou un fabricant, exception documentée : « Genius, fabriqué en Italie » pour le kit.
-- Ne pas commiter `.env.local`, bases Prisma, `data/devis/`, `shots/`, journaux.
+- Ne pas commiter `.env.local`, bases de données locales, `data/devis/`, `shots/`, journaux.
 - Les tests e2e peuvent créer des données de test : les exécuter sur une copie isolée, jamais contre le journal réel.

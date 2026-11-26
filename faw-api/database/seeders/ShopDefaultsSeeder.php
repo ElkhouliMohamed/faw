@@ -17,7 +17,7 @@ class ShopDefaultsSeeder extends Seeder
         }
         foreach ([['casablanca', 'Casablanca', 400], ['rabat', 'Rabat', 800]] as $i => $city) {
             if (! DB::table('ShippingCity')->where('slug', $city[0])->exists()) {
-                DB::table('ShippingCity')->insert(['slug' => $city[0], 'name' => $city[1], 'fee' => $city[2], 'sortOrder' => $i, 'updatedAt' => now()]);
+                DB::table('ShippingCity')->insert(['slug' => $city[0], 'name' => $city[1], 'fee' => $city[2], 'sortOrder' => $i, 'updatedAt' => now()->getTimestampMs()]);
             }
         }
         foreach (['company_name' => 'FAW Aluminium', 'office_address' => '21 Rue Al Yazidi Mohamed, Casablanca', 'depot_address' => '', 'ice' => '', 'rc' => '', 'phone' => '+212 522 865 202', 'email' => 'faw@faw.ma', 'instagram' => '', 'linkedin' => '', 'facebook' => 'https://www.facebook.com/profile.php?id=61560516980314'] as $key => $value) {

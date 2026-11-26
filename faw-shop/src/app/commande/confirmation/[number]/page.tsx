@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
-import { prisma } from "@/lib/db";
+import { shopOrder } from "@/lib/shop-api";
 import { getDict } from "@/lib/i18n-server";
 import { formatDH } from "@/lib/format";
 import { waLink } from "@/lib/site";
@@ -17,8 +17,8 @@ export const dynamic = "force-dynamic";
 export default async function Confirmation({ params, searchParams }: { params: Promise<{ number: string }>; searchParams: Promise<{ nouveau?: string }> }) {
   const { number } = await params;
   const { nouveau } = await searchParams;
-  if (!/^FAW-\d{6}-(?:[0-9A-F]{6}|[0-9A-F]{32})$/.test(number)) notFound();
-  const order = await prisma.order.findUnique({ where: { number }, include: { items: true } });
+  // Lu par l'API Laravel : numéro aléatoire complet uniquement, commande récente, aucune autre donnée client.
+  const order = await shopOrder(number);
   if (!order) notFound();
   const { t, locale } = await getDict();
   const dm = order.deliveryMode as DeliveryMode;

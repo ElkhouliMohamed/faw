@@ -2,20 +2,15 @@
 
 La politique d’organisation (gestion des secrets, liste d’exclusions, conduite à tenir si un secret fuit, 2FA, interdiction de réécrire l’historique sans l’accord du propriétaire) est dans **`faw-api/docs/SECURITY.md`**. À appliquer aussi à ce dépôt.
 
-## Administration historique Next
+## Back-office
 
-Un espace `/admin` Next existe encore dans le code mais **n’accorde plus les droits métier** : Filament (via l’API) est le seul back-office. S’il reste une garde par mot de passe :
-
-- `ADMIN_PASSWORD_HASH` (scrypt, `node scripts/hash-password.mjs`) ou `ADMIN_PASSWORD`, comparés en temps constant ;
-- verrouillage par IP après plusieurs échecs ;
-- session signée, cookie `httpOnly`, `SameSite=Strict`, `Secure` en HTTPS ;
-- `/admin` reste exclu de l’indexation.
+Le seul back-office est Filament (`/admin`, relayé vers Laravel ; comptes, rôles et 2FA gérés côté Laravel). L’ancien espace `/admin` Next a été supprimé. `/admin` reste exclu de l’indexation. La vitrine n’a aucun accès direct à la base de données.
 
 ## Requêtes et formulaires
 
 - CSRF : en-tête `Origin` des Server Actions (`SERVER_ACTIONS_ALLOWED_ORIGINS` pour un domaine supplémentaire).
 - Validation des entrées, champ piège, temps minimum de remplissage, limite de débit par IP.
-- Uploads : type vérifié par le contenu, taille limitée, nom aléatoire, pas de traversée de chemin.
+- Justificatif de virement (portail client) : taille et type limités, relayé à Laravel qui vérifie le contenu et le stocke en privé.
 
 ## En-têtes
 
