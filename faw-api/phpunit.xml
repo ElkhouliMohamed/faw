@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_LOCALE" value="fr"/>
+        <env name="APP_FALLBACK_LOCALE" value="fr"/>
+        <!-- Never the real Meta Closer counter/journal, never a real e-mail key, team mail only to the Resend test inbox -->
+        <env name="DEVIS_GENERATOR_SCRIPT" value="/tmp/faw-test-no-sandbox/generer_devis.py" force="true"/>
+        <env name="DEVIS_COUNTER_SCRIPT" value="/tmp/faw-test-no-sandbox/prochain_numero.py" force="true"/>
+        <env name="DEVIS_JOURNAL_PATH" value="/tmp/faw-test-no-sandbox/journal-devis.csv" force="true"/>
+        <env name="DEVIS_OUTPUT_DIR" value="/tmp/faw-test-no-sandbox/out" force="true"/>
+        <env name="RESEND_API_KEY" value="" force="true"/>
+        <env name="FAW_TEAM_EMAIL" value="delivered@resend.dev" force="true"/>
+        <env name="FAW_PICKUP_ADDRESS" value="" force="true"/>
+        <env name="FAW_BANK_HOLDER" value="" force="true"/>
+        <env name="FAW_BANK_NAME" value="" force="true"/>
+        <env name="FAW_BANK_BRANCH" value="" force="true"/>
+        <env name="FAW_BANK_RIB" value="" force="true"/>
+        <env name="FAW_BANK_IBAN" value="" force="true"/>
+        <env name="FAW_BANK_SWIFT" value="" force="true"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="CACHE_STORE" value="array"/>
+        <env name="DB_CONNECTION" value="sqlite"/>
+        <env name="DB_DATABASE" value=":memory:"/>
+        <env name="DB_URL" value=""/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+    </php>
+</phpunit>

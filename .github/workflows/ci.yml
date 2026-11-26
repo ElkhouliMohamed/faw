@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, staging]
+  pull_request:
+    branches: [main, develop, staging]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Fichiers concernés
+    runs-on: ubuntu-latest
+    outputs:
+      shop: ${{ steps.filter.outputs.shop }}
+      api: ${{ steps.filter.outputs.api }}
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Détecter les chemins modifiés
+        id: filter
+        run: |
+          set -euo pipefail
+          shop=false
+          api=false
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+          fi
+          if [ -z "${BASE}" ] || [ "${BASE}" = "0000000000000000000000000000000000000000" ]; then
+            shop=true
+            api=true
+          else
+            mapfile -t files < <(git diff --name-only "${BASE}" "${HEAD}")
+            for f in "${files[@]}"; do
+              case "$f" in
+                faw-shop/*|.github/*|scripts/*|.gitleaks.toml) shop=true ;;
+              esac
+              case "$f" in
+                faw-api/*|.github/*|scripts/*|.gitleaks.toml) api=true ;;
+              esac
+            done
+          fi
+          echo "shop=${shop}" >> "$GITHUB_OUTPUT"
+          echo "api=${api}" >> "$GITHUB_OUTPUT"
+          echo "shop=${shop} api=${api}"
+
+  secrets:
+    name: Fichiers sensibles et gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Contrôler les fichiers sensibles
+        run: bash scripts/check-sensitive-files.sh
+
+      - name: Installer gitleaks
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Scanner les secrets
+        run: gitleaks detect --source . --config .gitleaks.toml --verbose --no-banner
+
+  shop:
+    name: Vitrine (faw-shop)
+    needs: changes
+    if: needs.changes.outputs.shop == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: faw-shop
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: faw-shop/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Linter
+        run: npm run lint
+
+      - name: Build Next.js
+        env:
+          NEXT_PUBLIC_NOINDEX: "1"
+          LARAVEL_ORIGIN: http://127.0.0.1:8000
+        run: |
+          cp .env.example .env.local
+          npm run build
+
+      - name: Vérifier TypeScript
+        run: npx tsc --noEmit
+
+  api:
+    name: API (faw-api)
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: faw-api
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, intl, pdo_sqlite, sqlite3, tokenizer, xml, ctype, json, fileinfo
+          coverage: none
+          tools: composer:v2
+
+      - name: Valider composer.json
+        run: composer validate --no-check-publish --no-check-version
+
+      - name: Installer reportlab et poppler (devis, PDF)
+        run: |
+          python3 -m pip install --user reportlab
+          sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+
+      - name: Installer les dépendances PHP
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Vérifier la syntaxe PHP
+        run: bash scripts/php-lint.sh
+
+      - name: Migrer une base SQLite jetable
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force --no-interaction
+          : > /tmp/faw-ci-migrate.sqlite
+          DB_CONNECTION=sqlite DB_DATABASE=/tmp/faw-ci-migrate.sqlite \
+            php artisan migrate --force --no-interaction
+          rm -f .env
+
+      - name: Lancer les tests
+        run: |
+          # clé jetable générée à chaque run, jamais stockée
+          APP_KEY="base64:$(openssl rand -base64 32)" php artisan test
+
+      - name: Audit des dépendances Composer
+        run: composer audit

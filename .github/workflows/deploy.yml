@@ -1,0 +1,31 @@
+# Modèle de déploiement manuel. Aucun déploiement automatique.
+# Les secrets sont uniquement référencés par leur nom ; rien n'est exécuté
+# tant que le propriétaire n'a pas configuré l'environnement GitHub « production »
+# et validé une procédure réelle.
+name: Déploiement production (manuel)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Saisir DEPLOY pour confirmer un déploiement production"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Déployer (si confirmé)
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.event.inputs.confirm == 'DEPLOY'
+    steps:
+      - name: Rappel — déploiement non encore branché
+        run: |
+          echo "Déploiement manuel : modèle uniquement."
+          echo "Secrets attendus, une fois l'hébergement choisi et approuvé par le propriétaire :"
+          echo "  PRODUCTION_HOST, PRODUCTION_USER, PRODUCTION_SSH_KEY, PRODUCTION_APP_PATH"
+          echo "Aucune commande de déploiement n'est lancée tant que cette procédure n'est pas validée."
+          exit 1

@@ -1,0 +1,16 @@
+# Configuration gitleaks pour FAW.
+# N'y ajouter que des faux positifs documentés, jamais un secret réel.
+title = "faw-shop"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Faux positifs documentés (noms de stockage navigateur et clé Resend fictive de test)"
+regexes = [
+  '''faw-cart-v1''',
+  '''faw-consent-v1''',
+  '''faw-sid''',
+  '''faw-attr-v1''',
+  '''re_test_''',
+]

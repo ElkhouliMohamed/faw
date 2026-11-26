@@ -1,0 +1,9 @@
+# FAW — sauvegardes automatiques (heure du box, Africa/Casablanca).
+# Exécuté par busybox crond (cron absent, apt indisponible) : /workspace/backups/faw-crond-start.sh
+# Avec un vrai cron : crontab /workspace/backups/crontab.txt
+# Quotidien 02:30 : sauvegarde complète + manifeste + rotation (14 conservées)
+30 2 * * * PATH=/home/box/.local/bin:/usr/local/bin:/usr/bin:/bin HOME=/home/box /bin/bash /workspace/backups/faw-backup-daily.sh
+# Hebdomadaire, dimanche 03:30 : contrôle d'intégrité de la dernière sauvegarde
+30 3 * * 0 PATH=/home/box/.local/bin:/usr/local/bin:/usr/bin:/bin HOME=/home/box /bin/bash /workspace/backups/faw-backup-verify.sh
+# Quotidien 02:45 : droits propriétaire sur les PDF de devis et le stockage privé
+45 2 * * * cd /workspace/faw-api && PATH=/home/box/.local/bin:/usr/local/bin:/usr/bin:/bin HOME=/home/box /usr/bin/php artisan faw:secure-files >> /workspace/backups/logs/secure-files.log 2>&1

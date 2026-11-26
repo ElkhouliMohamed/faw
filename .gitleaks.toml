@@ -1,0 +1,19 @@
+# Configuration gitleaks pour le monorepo FAW.
+# N'y ajouter que des faux positifs documentés, jamais un secret réel.
+title = "faw"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Faux positifs documentés (stockage navigateur, clé Resend fictive de test, mot de passe fictif du test d’audit, mots de passe fictifs du test du profil admin)"
+regexes = [
+  '''faw-cart-v1''',
+  '''faw-consent-v1''',
+  '''faw-sid''',
+  '''faw-attr-v1''',
+  '''re_test_''',
+  '''NouveauMotDePasse12''',
+  '''nouveau-mot-de-passe-1''',
+  '''different-mot-de-passe''',
+]

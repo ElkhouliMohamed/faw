@@ -1,0 +1,6 @@
+# Configuration gitleaks pour FAW.
+# N'y ajouter que des faux positifs documentés, jamais un secret réel.
+title = "faw-api"
+
+[extend]
+useDefault = true

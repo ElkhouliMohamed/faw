@@ -1,0 +1,51 @@
+# Complète faw-shop/.gitignore et faw-api/.gitignore (défense en profondeur).
+
+# Environnement et secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+auth.json
+
+# Dépendances et builds
+node_modules/
+vendor/
+.next/
+out/
+dist/
+build/
+/tmp/
+
+# Journaux
+*.log
+
+# Bases et dumps (conserver le schéma SQL suivi)
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.dump
+*.sql.gz
+*.sql
+!faw-api/database/legacy-schema.sql
+
+# Devis clients, journaux et uploads locaux
+**/data/devis/
+**/journal-devis.csv
+**/Devis-*.pdf
+
+# Outils et caches
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.fleet/
+.nova/
+.zed/
+.phpunit.result.cache
+.phpunit.cache/
+*.tsbuildinfo
+
+# Captures locales
+**/shots/

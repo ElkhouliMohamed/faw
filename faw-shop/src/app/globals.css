@@ -1,0 +1,308 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * FAW v3 · « warm minimalist »
+ * 2 familles : Be Vietnam Pro (latin, titres + texte) et IBM Plex Sans Arabic (arabe).
+ * Échelle d'espacement Tailwind (4 px), un seul rayon (--radius), filets 1 px (--rule).
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-vietnam), var(--font-arabic), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-vietnam), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-vietnam), var(--font-arabic), ui-sans-serif, system-ui, sans-serif;
+  --color-copper: var(--copper);
+  --color-flame: var(--flame);
+  --color-umber: var(--umber);
+  --color-ink: var(--ink);
+  --color-cream: var(--cream);
+  --color-sand: var(--sand);
+  --color-rule: var(--rule);
+  --color-price: var(--price);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-deep-fg: var(--brand-deep-fg);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* un seul rayon : toutes les variantes shadcn pointent vers la même valeur */
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --radius-3xl: var(--radius);
+  --radius-4xl: var(--radius);
+
+  /* une seule échelle typographique fluide (360 → 1440 px) */
+  --text-d1: clamp(2.25rem, 1.65rem + 2.65vw, 4rem);
+  --text-d1--line-height: 1.04;
+  --text-d1--letter-spacing: -0.03em;
+  --text-d2: clamp(1.75rem, 1.45rem + 1.35vw, 2.75rem);
+  --text-d2--line-height: 1.1;
+  --text-d2--letter-spacing: -0.025em;
+  --text-d3: clamp(1.25rem, 1.15rem + 0.45vw, 1.5rem);
+  --text-d3--line-height: 1.25;
+  --text-d3--letter-spacing: -0.015em;
+  --text-lead: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+  --text-lead--line-height: 1.6;
+}
+
+:root {
+  /* FAW v6 · couleurs du logo : orange #F38F26 + brun #432A13 sur toile blanche (une seule « braise » orange) */
+  --copper: #b4530a;  /* orange texte (liens, sur-titres) : 5,0:1 sur blanc */
+  --flame: #f38f26;   /* orange du logo : boutons, puces, filets d'accent */
+  --umber: #432a13;   /* brun du logo : texte */
+  --ink: #2b1a0b;     /* brun profond (jamais de noir) */
+  --cream: #fffdfa;
+  --sand: #f5f1eb;    /* surface « lin » (fonds d'images, blocs) */
+  --rule: #ece4da;    /* filet 1 px */
+  --brand-deep: #432a13;
+  --brand-deep-fg: #fbf3e8;
+  --cta: #432a13;       /* brun du logo, 12,1:1 avec le crème */
+  --cta-fg: #fbf3e8;
+
+  --background: #ffffff;
+  --foreground: #432a13;
+  --card: #ffffff;
+  --card-foreground: #432a13;
+  --popover: #ffffff;
+  --popover-foreground: #432a13;
+  --primary: #f38f26;
+  --primary-foreground: #2b1a0b; /* 7,0:1 sur l'orange */
+  --secondary: #f5f1eb;
+  --secondary-foreground: #432a13;
+  --muted: #f5f1eb;
+  --muted-foreground: #6b5443; /* 7,1:1 sur blanc */
+  --accent: #fff1e2;
+  --accent-foreground: #432a13;
+  --destructive: #b42318;
+  --border: #ece4da;
+  --input: #dccfbf;
+  --ring: #b4530a;
+  --price: #432a13;
+  --chart-1: #f38f26; --chart-2: #b4530a; --chart-3: #432a13; --chart-4: #6b5443; --chart-5: #f5f1eb;
+  --radius: 0.75rem;
+  --sidebar: #ffffff; --sidebar-foreground: #432a13; --sidebar-primary: #f38f26; --sidebar-primary-foreground: #2b1a0b;
+  --sidebar-accent: #f5f1eb; --sidebar-accent-foreground: #432a13; --sidebar-border: #ece4da; --sidebar-ring: #b4530a;
+  --shadow-warm: 0 1px 2px rgb(67 42 19 / 0.06), 0 12px 32px -16px rgb(67 42 19 / 0.18);
+}
+
+.dark {
+  --copper: #f7b36b;
+  --flame: #f5a04a;
+  --sand: #2e2013;
+  --rule: #3a2a1c;
+  --cream: #f7efe6;
+  --brand-deep: #120b05;
+  --brand-deep-fg: #f7efe6;
+  --cta: #fbf3e8;       /* crème du logo, lisible sur le fond sombre */
+  --cta-fg: #432a13;    /* 12,1:1 */
+  --background: #1c120a;
+  --foreground: #f7efe6;
+  --card: #26190e;
+  --card-foreground: #f7efe6;
+  --popover: #26190e;
+  --popover-foreground: #f7efe6;
+  --primary: #f5a04a;
+  --primary-foreground: #1c120a;
+  --secondary: #2e2013;
+  --secondary-foreground: #f7efe6;
+  --muted: #2e2013;
+  --muted-foreground: #c9b8a6;
+  --accent: #3a2716;
+  --accent-foreground: #f7efe6;
+  --destructive: #f08a72;
+  --border: #3a2a1c;
+  --input: #4a3826;
+  --ring: #f7b36b;
+  --price: #f7efe6;
+  --sidebar: #26190e; --sidebar-foreground: #f7efe6; --sidebar-primary: #f5a04a; --sidebar-primary-foreground: #1c120a;
+  --sidebar-accent: #2e2013; --sidebar-accent-foreground: #f7efe6; --sidebar-border: #3a2a1c; --sidebar-ring: #f7b36b;
+  --shadow-warm: 0 1px 2px rgb(10 6 3 / 0.3), 0 12px 32px -16px rgb(10 6 3 / 0.5);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html { @apply font-sans; scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 1rem;
+    line-height: 1.6;
+    font-feature-settings: "tnum" 0;
+    overflow-x: clip;
+  }
+  html[dir="rtl"] body { font-family: var(--font-arabic), var(--font-vietnam), ui-sans-serif, system-ui, sans-serif; }
+  html[dir="rtl"] :is(h1, h2, h3, h4, .font-heading) { font-family: var(--font-arabic), var(--font-vietnam), sans-serif; letter-spacing: 0; }
+  h1, h2, h3, h4 { @apply font-heading; font-weight: 600; text-wrap: balance; }
+  p { text-wrap: pretty; }
+  ::selection { background: var(--sand); color: var(--umber); }
+  .dark ::selection { background: var(--copper); color: var(--ink); }
+  img { color: transparent; }
+}
+
+/* ---------- Grille & rythme ---------- */
+/* conteneur unique : 1440 px max, gouttières 16 / 32 / 48 px */
+@utility shell {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: 1rem;
+  @media (width >= 40rem) { padding-inline: 2rem; }
+  @media (width >= 80rem) { padding-inline: 3rem; }
+}
+/* grille stricte 12 colonnes, gouttière 16 / 24 / 32 px */
+@utility grid-12 {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: 1rem;
+  @media (width >= 48rem) { column-gap: 1.5rem; }
+  @media (width >= 80rem) { column-gap: 2rem; }
+}
+@utility section-y {
+  padding-block: 4rem;
+  @media (width >= 64rem) { padding-block: 6rem; }
+}
+@utility hairline { border-top: 1px solid var(--rule); }
+
+/* sur-titre : petit, majuscules espacées */
+@utility label-mono {
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+@utility eyebrow {
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+@utility display {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
+}
+@utility tnum { font-variant-numeric: tabular-nums; }
+
+/* Arabe : pas d'espacement des lettres (casse les ligatures) */
+html[dir="rtl"] :is(.label-mono, .eyebrow) { letter-spacing: 0; font-family: var(--font-arabic), var(--font-vietnam), sans-serif; font-size: 0.8125rem; }
+html[dir="rtl"] :is(.label-mono, .eyebrow)[dir="ltr"] { font-family: var(--font-vietnam), sans-serif; letter-spacing: 0.06em; font-size: 0.75rem; }
+html[dir="rtl"] .display { letter-spacing: 0; line-height: 1.25; font-family: var(--font-arabic), var(--font-vietnam), sans-serif; font-weight: 600; }
+
+/* ---------- Boutons (un seul style de rayon / hauteur) ---------- */
+@utility btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 3rem;
+  padding-inline: 1.5rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+@utility btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  &:hover { background: color-mix(in oklab, var(--primary) 88%, var(--umber)); }
+  &:active { transform: translateY(1px); }
+}
+/* CTA accueil : brun du logo, indépendant de l'accent (l'olive laissait un texte sombre illisible). */
+@utility btn-cta {
+  background: var(--cta);
+  color: var(--cta-fg);
+  &:hover { background: color-mix(in oklab, var(--cta) 88%, var(--cta-fg)); }
+  &:active { transform: translateY(1px); }
+}
+@utility btn-ghost {
+  border: 1px solid var(--input);
+  color: var(--foreground);
+  &:hover { border-color: var(--foreground); }
+}
+
+/* ---------- Révélations au scroll (CSS seul, sans JS) ---------- */
+@keyframes reveal-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: reveal-up linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 35%;
+    }
+  }
+}
+
+/* ---------- Intro (1re visite de la session, page d'accueil) : 2,0 s au total (sortie 1,5 → 2,0 s) ---------- */
+.intro { display: none; }
+html[data-intro="play"] .intro {
+  display: flex;
+  animation: intro-out 0.5s cubic-bezier(0.76, 0, 0.24, 1) 1.5s both;
+}
+html[data-intro="skip"] .intro { display: flex; animation: intro-skip 0.25s ease-out both; }
+@keyframes intro-skip { to { opacity: 0; visibility: hidden; } }
+.intro-logo { animation: intro-logo 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.intro-line { animation: intro-line 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both; }
+.intro-rule { transform-origin: left; animation: intro-rule 1s cubic-bezier(0.65, 0, 0.35, 1) 0.15s both; }
+html[dir="rtl"] .intro-rule { transform-origin: right; }
+@keyframes intro-logo { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes intro-line { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes intro-rule { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes intro-out {
+  from { clip-path: inset(0 0 0 0); }
+  to { clip-path: inset(0 0 100% 0); visibility: hidden; pointer-events: none; }
+}
+
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .intro { display: none !important; }
+}
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Presets administrables, paires clair/sombre à contraste conservé. Le cuivre par défaut reste inchangé. */
+:root[data-faw-accent="olive"] { --copper:#59613a; --primary:#59613a; --primary-foreground:#fffdfa; --ring:#59613a; }
+:root.dark[data-faw-accent="olive"] { --copper:#b6c18a; --primary:#b6c18a; --primary-foreground:#1c120a; --ring:#b6c18a; }
+:root[data-faw-accent="umber"] { --copper:#65432b; --primary:#65432b; --primary-foreground:#fbf3e8; --ring:#65432b; }
+:root.dark[data-faw-accent="umber"] { --copper:#cfaf8d; --primary:#cfaf8d; --primary-foreground:#1c120a; --ring:#cfaf8d; }
+

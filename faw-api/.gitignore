@@ -1,0 +1,61 @@
+# Environment — never commit secrets; only the example is tracked
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Dependencies and local tooling
+/vendor
+/node_modules
+/auth.json
+.DS_Store
+Thumbs.db
+.phpactor.json
+.phpunit.result.cache
+/.phpunit.cache
+/.fleet
+/.idea
+/.nova
+/.vscode
+/.zed
+Homestead.json
+Homestead.yaml
+
+# Front build artefacts
+/public/build
+/public/css/filament
+/public/fonts/filament
+/public/hot
+/public/js/filament
+/public/storage
+
+# Database files and dumps (keep the tracked schema SQL)
+/database/*.sqlite*
+/database/backups/
+/backups/
+*.dump
+*.sql.gz
+*.sql
+!/database/legacy-schema.sql
+
+# Storage: private content, logs, sessions, cache (defense in depth;
+# the inner storage/**/.gitignore files also apply)
+/storage/*.key
+/storage/pail
+/storage/logs/*
+!/storage/logs/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/cache/data/*
+!/storage/framework/cache/data/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/app/private/*
+!/storage/app/private/.gitignore
+/storage/app/public/*
+!/storage/app/public/.gitignore
+
+# Local screenshots
+/shots/
