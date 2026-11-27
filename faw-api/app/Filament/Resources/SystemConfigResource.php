@@ -96,6 +96,12 @@ abstract class SystemConfigResource extends OwnerResource
             if ($kind === 'email') {
                 $field->email()->placeholder('nom@domaine.ma');
             }
+            if ($kind === 'phone') {
+                $field->tel()->regex('/^\+?[0-9][0-9 .()-]{5,24}$/')->placeholder('+212 5XX XX XX XX')->helperText('Chiffres, espaces et « + » uniquement.');
+            }
+            if ($kind === 'color') {
+                $field->regex('/^#[0-9a-fA-F]{6}$/')->placeholder('#F38F26')->helperText('Couleur hexadécimale, ex. #F38F26. Vide = accent choisi ci-dessus. Le texte des boutons s’adapte au contraste.');
+            }
             if ($kind === 'digits') {
                 $field->regex('/^\d{5,30}$/')->helperText('Chiffres uniquement, sans espace ni « + ».');
             }

@@ -5,6 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\BlogCategory;
 use App\Models\BlogTag;
 use App\Models\ContentPage;
+use App\Models\Setting;
+use App\Models\SiteMenu;
+use App\Models\SystemConfig;
+use App\Services\HomeSections;
 use App\Services\PriceVisibility;
 use Illuminate\Http\Request;
 
@@ -58,6 +62,94 @@ class ContentController extends Controller
     public function taxonomies()
     {
         return ['categories' => BlogCategory::where('active', true)->get(['id', 'slug', 'label']), 'tags' => BlogTag::where('active', true)->get(['id', 'slug', 'label'])];
+    }
+
+    /**
+     * Site-wide content for the storefront layout: contact details, social links, theme overrides and menus.
+     * Every value is validated here; a null value / null menu means "use the storefront default".
+     */
+    public function site()
+    {
+        $social = SystemConfig::settings('social');
+        $theme = SystemConfig::settings('theme');
+        $settings = Setting::query()->whereIn('key', ['phone', 'email', 'office_address', 'depot_address'])->pluck('value', 'key');
+        $text = fn ($v, int $max = 200) => is_string($v) && trim($v) !== '' && ! preg_match('/[<>]/', $v) ? mb_substr(trim($v), 0, $max) : null;
+        $match = fn ($v, string $re) => is_string($v) && preg_match($re, trim($v)) ? trim($v) : null;
+        $image = '#^/(?:images|storage)/[a-zA-Z0-9_./-]+\.(?:png|jpe?g|webp|avif)$#i';
+
+        $phone = $match($social['phone'] ?? null, '/^\+?[0-9][0-9 .()-]{5,24}$/') ?? $match($settings['phone'] ?? null, '/^\+?[0-9][0-9 .()-]{5,24}$/');
+        $whatsapp = $match($social['whatsappNumber'] ?? null, '/^\d{8,20}$/');
+        $email = filter_var($social['email'] ?? null, FILTER_VALIDATE_EMAIL) ?: (filter_var($settings['email'] ?? null, FILTER_VALIDATE_EMAIL) ?: null);
+
+        $menus = [];
+        foreach (array_keys(SiteMenu::LOCATIONS) as $location) {
+            $menus[$location] = null;
+        }
+        foreach (SiteMenu::where('active', true)->get() as $menu) {
+            try {
+                $items = SiteMenu::normalizeItems($menu->items);
+            } catch (\Throwable) {
+                $items = [];
+            }
+            if ($items !== []) {
+                $menus[$menu->location] = ['title' => $this->clean((string) $menu->title), 'items' => array_map(fn ($i) => ['label' => $this->clean($i['label'])] + $i, $items)];
+            }
+        }
+
+        return response()->json([
+            'contact' => [
+                'phone' => $phone,
+                'whatsappNumber' => $whatsapp,
+                'email' => $email,
+                'address' => $text($social['address'] ?? null) ?? $text($settings['office_address'] ?? null),
+                'depotAddress' => $text($social['depotAddress'] ?? null) ?? $text($settings['depot_address'] ?? null),
+                'hours' => $text($social['hours'] ?? null),
+                'mapsUrl' => $match($social['mapsUrl'] ?? null, '#^https://[^<>\s"\\\\]+$#'),
+                'wazeUrl' => $match($social['wazeUrl'] ?? null, '#^https://[^<>\s"\\\\]+$#'),
+            ],
+            'socials' => [
+                'instagram' => $match($social['instagram'] ?? null, '#^https://(?:www\.)?instagram\.com/[^<>\s"\\\\]*$#i'),
+                'linkedin' => $match($social['linkedin'] ?? null, '#^https://(?:[a-z]{2,3}\.)?linkedin\.com/[^<>\s"\\\\]*$#i'),
+                'facebook' => $match($social['facebook'] ?? null, '#^https://(?:www\.)?facebook\.com/[^<>\s"\\\\]*$#i'),
+            ],
+            'theme' => [
+                'primaryColor' => $match($theme['primaryColor'] ?? null, '/^#[0-9a-fA-F]{6}$/'),
+                'logo' => $match($theme['logo'] ?? null, $image),
+                'logoDark' => $match($theme['logoDark'] ?? null, $image),
+            ],
+            'menus' => $menus,
+        ])->header('Cache-Control', 'no-store');
+    }
+
+    /** {home: sections of the published home record} or {home: null}: the storefront then renders its default home. */
+    public function home()
+    {
+        $page = $this->published()->where('kind', 'home')->orderBy('id')->first();
+        if (! $page) {
+            return response()->json(['home' => null])->header('Cache-Control', 'no-store');
+        }
+        $sections = HomeSections::public($page->getAttributes()['blocks'] ?? '[]');
+        $show = PriceVisibility::showOnSite();
+
+        return response()->json(['home' => [
+            'title' => $this->clean((string) $page->title),
+            'excerpt' => $page->excerpt !== null ? $this->clean($page->excerpt) : null,
+            'image' => is_string($page->image) && preg_match(HomeSections::IMAGE, $page->image) ? $page->image : null,
+            'ctaLabel' => $page->ctaLabel !== null ? $this->clean($page->ctaLabel) : null,
+            'ctaUrl' => is_string($page->ctaUrl) && preg_match(HomeSections::LINK, $page->ctaUrl) ? $page->ctaUrl : null,
+            'seoTitle' => $page->seoTitle !== null ? $this->clean($page->seoTitle) : null,
+            'seoDescription' => $page->seoDescription !== null ? $this->clean($page->seoDescription) : null,
+            'legacy' => HomeSections::isLegacy($page->getAttributes()['blocks'] ?? '[]'),
+            'defaultSections' => (bool) $page->defaultSections,
+            'sections' => $show ? $sections : $this->sanitizeBlocks($sections),
+            'updatedAt' => $page->updated_at?->toIso8601String(),
+        ]])->header('Cache-Control', 'no-store');
+    }
+
+    /** Public text with prices masked when the owner hides prices on the site. */
+    protected function clean(string $text): string
+    {
+        return (string) PriceVisibility::sanitizeText($text);
     }
 
     /** @param  array<string, mixed>  $row */

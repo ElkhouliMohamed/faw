@@ -26,17 +26,18 @@ class CatalogSeoTest extends TestCase
         return Product::create(['id' => $id, 'slug' => strtolower($id), 'title' => 'Produit '.$id, 'seoTitle' => 'Produit '.$id, 'description' => 'Description', 'price' => 2200, 'category' => 'Portes', 'updatedAt' => now()] + $extra);
     }
 
-    public function test_sales_mode_defaults_to_quote_only_and_stays_inert_on_the_public_api(): void
+    public function test_sales_mode_defaults_to_online_and_is_never_exposed_raw_on_the_public_api(): void
     {
         $this->cat('portes', ['label' => 'Portes']);
         $a = $this->product('A-1');
         $b = $this->product('B-1', ['salesMode' => 'direct']);
         $c = $this->product('C-1', ['salesMode' => 'n-importe-quoi']);
-        $this->assertSame(['quote_only', 'direct', 'quote_only'], [$a->fresh()->salesMode, $b->fresh()->salesMode, $c->fresh()->salesMode]);
+        // Not set = « direct » (today's behaviour, prices still governed by the global switch); unknown value = « quote_only » (safe).
+        $this->assertSame(['direct', 'direct', 'quote_only'], [$a->fresh()->salesMode, $b->fresh()->salesMode, $c->fresh()->salesMode]);
 
         $rows = collect($this->getJson('/api/catalog')->assertOk()->json())->keyBy('id');
         $strip = fn (array $r) => collect($r)->except(['id', 'slug', 'title', 'seoTitle'])->all();
-        $this->assertSame($strip($rows['A-1']), $strip($rows['B-1']), 'sales mode must not change what the public site receives');
+        $this->assertSame($strip($rows['A-1']), $strip($rows['B-1']), 'same mode: same public row; the raw salesMode never leaves the API');
         $this->assertArrayNotHasKey('salesMode', $rows['B-1']);
         $this->assertArrayHasKey('h1', $rows['A-1']);
     }

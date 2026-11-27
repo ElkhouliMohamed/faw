@@ -12,7 +12,7 @@ class Payment extends Model
     protected $guarded = ['id'];
 
     /** Amount, reference and order never change once created (a new schedule cancels and recreates). */
-    public const FROZEN = ['customer_order_id', 'position', 'amount', 'currency', 'reference', 'provider'];
+    public const FROZEN = ['customer_order_id', 'shop_order_id', 'position', 'amount', 'currency', 'reference', 'provider'];
 
     protected function casts(): array
     {
@@ -32,6 +32,12 @@ class Payment extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(CustomerOrder::class, 'customer_order_id');
+    }
+
+    /** Site order (checkout) this payment belongs to, when it is not a quote order. */
+    public function shopOrder(): BelongsTo
+    {
+        return $this->belongsTo(ShopOrder::class, 'shop_order_id');
     }
 
     public function transactions(): HasMany

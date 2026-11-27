@@ -5,6 +5,7 @@ import { CATEGORIES, CATEGORIES as STATIC_CATS, canOrder as canOrderP, type Cate
 import type { PublicCategory, PublicPack, ShopConfig } from "./shop-config";
 import type { ShippingConfig } from "./delivery";
 import type { PublicPopup } from "@/components/popups";
+import { publicJson } from "./shop-api";
 
 // Données « merchandising » éditées dans Filament (catégories, badges, garanties, attributs, packs, popups, livraison).
 // Lues par l'API Laravel (/api/shop/merch) : la boutique n'accède jamais directement à la base.
@@ -40,12 +41,14 @@ export type CategoryRow = z.infer<typeof categorySchema>;
 export type BundleRow = z.infer<typeof merchSchema>["bundles"][number];
 export type Merch = Omit<z.infer<typeof merchSchema>, "popups" | "shipping"> & { popups: PublicPopup[]; shipping: ShippingConfig };
 
-/** Un seul appel API par rendu (React cache). */
+/**
+ * Un seul appel par rendu (React cache) ; la réponse est en cache Next (étiquette "merch", 120 s max),
+ * vidée par Laravel dès qu'une catégorie, un pack, un popup ou un tarif de livraison change dans Filament.
+ */
 export const merch = cache(async function merch(): Promise<Merch> {
-  const origin = process.env.LARAVEL_ORIGIN || "http://127.0.0.1:8000";
-  const response = await fetch(`${origin}/api/shop/merch`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
-  if (!response.ok) throw new Error("Données boutique temporairement indisponibles");
-  return merchSchema.parse(await response.json());
+  const data = await publicJson("/api/shop/merch", "merch", 10000);
+  if (data == null) throw new Error("Données boutique temporairement indisponibles");
+  return merchSchema.parse(data);
 });
 
 export const csv = (s: string | null | undefined) => (s ?? "").split(",").map((x) => x.trim()).filter(Boolean);

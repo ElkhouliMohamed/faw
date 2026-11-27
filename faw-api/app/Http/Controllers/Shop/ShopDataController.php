@@ -16,7 +16,10 @@ use App\Models\Quote;
 use App\Models\ShippingCity;
 use App\Models\ShopOrder;
 use App\Models\Warranty;
+use App\Services\CheckoutService;
 use App\Services\CommerceService;
+use App\Services\OrderService;
+use App\Services\PaymentService;
 use App\Services\PriceVisibility;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -135,18 +138,25 @@ class ShopDataController extends Controller
      * Order confirmation (/commande/confirmation/{number}). The number carries 128 random bits; legacy short
      * numbers are not served. Only what the customer just submitted is returned, and only for a limited time.
      */
-    public function order(string $number): JsonResponse
+    public function order(string $number, PaymentService $payments): JsonResponse
     {
         abort_unless(preg_match('/^FAW-\d{6}-[0-9A-F]{32}$/', $number), 404);
         $o = ShopOrder::where('number', $number)->first();
         abort_unless($o && $o->createdAt && $o->createdAt->gt(now()->subDays(self::ORDER_CONFIRMATION_DAYS)), 404);
-        $items = DB::table('OrderItem')->where('orderId', $o->id)->orderBy('id')->get(['id', 'productId', 'title', 'quantity', 'lineTotal']);
+        $items = DB::table('OrderItem')->where('orderId', $o->id)->orderBy('id')->get(['id', 'productId', 'title', 'quantity', 'unitPrice', 'lineTotal']);
+        $total = (int) $o->total;
 
         return response()->json([
             'number' => (string) $o->number, 'customerName' => (string) $o->customerName, 'city' => (string) $o->city,
             'deliveryMode' => (string) $o->deliveryMode, 'deliveryFee' => (int) $o->deliveryFee, 'deliveryNote' => $o->deliveryNote ?: null,
-            'paymentMethod' => (string) $o->paymentMethod, 'total' => (int) $o->total,
-            'items' => $items->map(fn ($i) => ['id' => (int) $i->id, 'productId' => (string) $i->productId, 'title' => (string) $i->title, 'quantity' => (int) $i->quantity, 'lineTotal' => (int) $i->lineTotal])->values(),
+            'paymentMethod' => (string) $o->paymentMethod, 'total' => $total,
+            'items' => $items->map(fn ($i) => ['id' => (int) $i->id, 'productId' => (string) $i->productId, 'title' => (string) $i->title, 'quantity' => (int) $i->quantity, 'unitPrice' => (int) $i->unitPrice, 'lineTotal' => (int) $i->lineTotal])->values(),
+            // Checkout details (site orders): what the customer just submitted, plus the payment state of this order only.
+            'status' => (string) $o->status, 'paymentStatus' => $o->paymentStatus ?: null, 'subtotal' => (int) $o->subtotal,
+            'couponCode' => $o->couponCode ?: null, 'couponDiscount' => (int) $o->couponDiscount, 'company' => $o->company ?: null,
+            'taxRate' => CheckoutService::TAX_RATE, 'totalHt' => CheckoutService::ht($total), 'tva' => round($total - CheckoutService::ht($total), 2),
+            'pickupAddress' => $o->deliveryMode === 'retrait' ? OrderService::pickupAddress() : null,
+            'payment' => $payments->shopOrderState($o),
         ])->header('Cache-Control', 'private, no-store')->header('X-Robots-Tag', 'noindex, nofollow');
     }
 

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\ContentBlocks;
+use App\Services\HomeSections;
 use App\Services\SafeHtml;
 
 class ContentPage extends ShopModel
@@ -20,7 +21,8 @@ class ContentPage extends ShopModel
         parent::booted();
         static::saving(function ($m) {
             $m->tags = array_values(array_map('strval', $m->tags ?? []));
-            $m->blocks = ContentBlocks::normalize($m->blocks ?? []);
+            // The home page uses its own section builder (hero, categories, testimonials...); other kinds keep the landing-page blocks.
+            $m->blocks = $m->kind === 'home' ? HomeSections::normalize($m->blocks ?? []) : ContentBlocks::normalize($m->blocks ?? []);
             $m->bodyHtml = SafeHtml::clean($m->bodyHtml);
         });
     }

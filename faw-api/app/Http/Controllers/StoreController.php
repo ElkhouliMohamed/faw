@@ -8,6 +8,8 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Quote;
 use App\Models\ShopOrder;
+use App\Services\CheckoutService;
+use App\Services\CheckoutSettings;
 use App\Services\CommerceService;
 use App\Services\PriceVisibility;
 use App\Services\QuoteService;
@@ -31,7 +33,9 @@ class StoreController extends Controller
     protected function publicProduct(Product $p): array
     {
         $priced = app(CommerceService::class)->productPrice($p);
-        $row = [...$p->only(['id', 'slug', 'title', 'seoTitle', 'description', 'shortDescription', 'price', 'category', 'brand', 'image', 'availability', 'stockQty', 'priceToConfirm', 'stockToConfirm', 'variantGroup', 'variantLabel', 'sortOrder', 'active', 'metaTitle', 'metaDescription', 'h1', 'attributes', 'badges', 'warrantyId', 'details', 'installationGuide', 'datasheet', 'maintenanceGuide']), 'stockNote' => null, 'updatedAt' => $p->updatedAt?->toIso8601String(), 'basePrice' => $p->price, ...$priced, 'orderable' => PriceVisibility::orderable($p, (int) ($priced['price'] ?? $p->price))];
+        // priceMode: « online » = price + add to cart; « quote » = no price at all (product « sur devis » or prices hidden globally).
+        $row = [...$p->only(['id', 'slug', 'title', 'seoTitle', 'description', 'shortDescription', 'price', 'category', 'brand', 'image', 'availability', 'stockQty', 'priceToConfirm', 'stockToConfirm', 'variantGroup', 'variantLabel', 'sortOrder', 'active', 'metaTitle', 'metaDescription', 'h1', 'attributes', 'badges', 'warrantyId', 'details', 'installationGuide', 'datasheet', 'maintenanceGuide']), 'stockNote' => null, 'updatedAt' => $p->updatedAt?->toIso8601String(), 'basePrice' => $p->price, ...$priced, 'orderable' => PriceVisibility::orderable($p, (int) ($priced['price'] ?? $p->price)),
+            'priceMode' => PriceVisibility::mode($p), 'maxOnlineQty' => $p->maxOnlineQty !== null ? (int) $p->maxOnlineQty : null, 'taxRate' => CheckoutService::TAX_RATE];
 
         return PriceVisibility::sanitizeProduct($row);
     }
@@ -43,61 +47,53 @@ class StoreController extends Controller
 
     public function submit(Request $r, QuoteService $service, bool $quote = false)
     {
-        $r->merge(['phone' => preg_replace('/[\s.()\-]/', '', (string) $r->input('phone'))]);
-        $v = $r->validate([
+        $r->merge(['phone' => preg_replace('/[\s.()\-]/', '', (string) $r->input('phone')), 'ice' => $r->filled('ice') ? preg_replace('/\s+/', '', (string) $r->input('ice')) : null]);
+        $orderRules = $quote ? ['cartId' => ['nullable', 'regex:/^[a-z0-9]{16,40}$/'], 'fromCart' => ['sometimes', 'boolean']] : [
+            'paymentMethod' => ['required', Rule::in(CheckoutSettings::METHODS)], 'cgv' => ['accepted'],
+            'fulfilment' => ['sometimes', Rule::in(['livraison', 'retrait'])], 'citySlug' => ['nullable', 'regex:/^[a-z0-9-]{1,60}$/'],
+        ];
+        $v = $r->validate($orderRules + [
             'name' => ['required', 'string', 'min:2', 'max:80'], 'phone' => ['required', 'regex:/^(?:\+212|00212|0)[5-7]\d{8}$/'], 'email' => ['required', 'email', 'max:120'],
             'city' => ['required', 'string', 'min:2', 'max:60'], 'clientType' => ['sometimes', Rule::in(['particulier', 'entreprise'])],
             'company' => ['nullable', 'string', 'max:120'], 'ice' => ['nullable', 'regex:/^\d{15}$/'], 'address' => ['nullable', 'string', 'max:300'],
-            'items' => ['required', 'array', 'min:1', 'max:20'], 'items.*.id' => ['required', 'string', 'max:90'], 'items.*.qty' => ['required', 'integer', 'min:1', 'max:500'],
+            'items' => ['required', 'array', 'min:1', 'max:20'], 'items.*.id' => ['required', 'string', 'max:90'], 'items.*.qty' => ['required', 'integer', 'min:1', 'max:999'],
             'note' => ['nullable', 'string', 'max:600'], 'custom' => ['sometimes', 'boolean'], 'kitLeaf' => ['nullable', 'numeric', 'min:0.3', 'max:10'],
-            'coupon' => ['nullable', 'string', 'max:40'], 'attribution' => ['sometimes', 'array'], 'attribution.utmSource' => ['nullable', 'string', 'max:60'], 'attribution.utmMedium' => ['nullable', 'string', 'max:60'], 'attribution.utmCampaign' => ['nullable', 'string', 'max:100'], 'cartId' => ['nullable', 'regex:/^[a-z0-9]{16,40}$/'], 'pickup' => ['sometimes', 'boolean'], 'deliveryMode' => ['sometimes', 'string', 'max:40'], 'paymentMethod' => ['sometimes', Rule::in(['virement', 'cheque', 'reception'])],
-        ]);
+            'coupon' => ['nullable', 'string', 'max:40'], 'attribution' => ['sometimes', 'array'], 'attribution.utmSource' => ['nullable', 'string', 'max:60'], 'attribution.utmMedium' => ['nullable', 'string', 'max:60'], 'attribution.utmCampaign' => ['nullable', 'string', 'max:100'], 'cartId' => ['nullable', 'regex:/^[a-z0-9]{16,40}$/'], 'pickup' => ['sometimes', 'boolean'], 'deliveryMode' => ['nullable', 'string', 'max:60'],
+        ], ['cgv.accepted' => 'Veuillez accepter les conditions générales de vente.', 'paymentMethod.in' => 'Mode de paiement non disponible.']);
         if (($v['clientType'] ?? '') === 'entreprise' && empty($v['company'])) {
             throw ValidationException::withMessages(['company' => 'Raison sociale requise.']);
         }
-        if (! $quote && ! ($v['pickup'] ?? false) && mb_strlen($v['address'] ?? '') < 5) {
-            throw ValidationException::withMessages(['address' => 'Adresse de livraison requise.']);
+        if (! $quote) {
+            // Online order: CheckoutService recomputes every amount and checks the payment method server-side.
+            $pickup = ($v['pickup'] ?? false) || ($v['fulfilment'] ?? '') === 'retrait' || ($v['deliveryMode'] ?? '') === 'retrait';
+            $v['pickup'] = $pickup;
+            $v['deliveryMode'] = $pickup ? 'retrait' : ($v['citySlug'] ?? $v['deliveryMode'] ?? null);
+
+            return response()->json(app(CheckoutService::class)->place($v), 201)->header('Cache-Control', 'no-store');
         }
         $priced = $service->price($v['items'], $v);
         $token = Quote::newRawToken();
-        $result = DB::transaction(function () use ($v, $priced, $quote, $token) {
+        $result = DB::transaction(function () use ($v, $priced, $token) {
             $phone = $v['phone'];
             if (str_starts_with($phone, '0')) {
                 $phone = str_starts_with($phone, '00212') ? '+'.substr($phone, 2) : '+212'.substr($phone, 1);
             }
             $client = Customer::updateOrCreate(['phone' => $phone], ['name' => $v['name'], 'email' => $v['email'] ?? null, 'city' => $v['city'], 'company' => $v['company'] ?? null, 'ice' => $v['ice'] ?? null, 'type' => $v['clientType'] ?? 'particulier', 'source' => 'site', 'lastActivityAt' => now()]);
             $pickup = $v['pickup'] ?? false;
-            $commerce = app(CommerceService::class);
-            $mode = $v['deliveryMode'] ?? ($pickup ? 'retrait' : 'autre');
-            $transportData = $commerce->quoteTransport($priced['lines'], $v['city'], $pickup);
+            $transportData = app(CommerceService::class)->quoteTransport($priced['lines'], $v['city'], $pickup);
             $transport = $transportData['input'];
             $transportLabel = $transportData['label'];
-            $orderFee = 0;
-            $coupon = null;
-            if (! $quote) {
-                $shipping = $commerce->shipping($priced['lines'], $mode);
-                $orderFee = $shipping['fee'];
-                $transportLabel = $shipping['label'];
-                if (($v['paymentMethod'] ?? '') === 'reception' && ! $shipping['kitOnly']) {
-                    throw ValidationException::withMessages(['paymentMethod' => 'Le paiement à la réception est réservé au kit seul.']);
-                }
-                if (! empty($v['coupon'])) {
-                    $coupon = $commerce->coupon($v['coupon'], $priced['total'], true);
-                }
-            }
             $number = 'FAW-'.now()->format('ymd').'-'.strtoupper(bin2hex(random_bytes(16)));
-            $o = ShopOrder::create(['number' => $number, 'contactId' => $client->id, 'customerName' => $v['name'], 'phone' => $phone, 'email' => $v['email'] ?? null, 'city' => $v['city'], 'address' => $v['address'] ?? '', 'company' => $v['company'] ?? null, 'ice' => $v['ice'] ?? null, 'deliveryMode' => $quote ? ($pickup ? 'retrait' : 'autre') : $mode, 'deliveryFee' => $orderFee, 'deliveryNote' => $transportLabel, 'paymentMethod' => $v['paymentMethod'] ?? 'à définir', 'notes' => $v['note'] ?? null, 'subtotal' => $priced['total'], 'total' => $priced['total'] + $orderFee - ($coupon['discount'] ?? 0), 'couponCode' => $coupon['code'] ?? null, 'couponDiscount' => $coupon['discount'] ?? 0, 'cartId' => $v['cartId'] ?? null, 'utmSource' => $v['attribution']['utmSource'] ?? null, 'utmMedium' => $v['attribution']['utmMedium'] ?? null, 'utmCampaign' => $v['attribution']['utmCampaign'] ?? null, 'quoteRefusal' => $priced['reasons'] ? implode(' ; ', $priced['reasons']) : null]);
+            $o = ShopOrder::create(['number' => $number, 'contactId' => $client->id, 'customerName' => $v['name'], 'phone' => $phone, 'email' => $v['email'] ?? null, 'city' => $v['city'], 'address' => $v['address'] ?? '', 'company' => $v['company'] ?? null, 'ice' => $v['ice'] ?? null, 'deliveryMode' => $pickup ? 'retrait' : 'autre', 'deliveryFee' => 0, 'deliveryNote' => $transportLabel, 'paymentMethod' => 'à définir', 'clientType' => $v['clientType'] ?? 'particulier', 'notes' => $v['note'] ?? null, 'subtotal' => $priced['total'], 'total' => $priced['total'], 'couponCode' => null, 'couponDiscount' => 0, 'cartId' => $v['cartId'] ?? null, 'utmSource' => $v['attribution']['utmSource'] ?? null, 'utmMedium' => $v['attribution']['utmMedium'] ?? null, 'utmCampaign' => $v['attribution']['utmCampaign'] ?? null, 'quoteRefusal' => $priced['reasons'] ? implode(' ; ', $priced['reasons']) : null]);
             foreach ($priced['lines'] as $l) {
                 DB::table('OrderItem')->insert(['orderId' => $o->id, 'productId' => $l['id'], 'title' => $l['title'], 'category' => $l['category'], 'unitPrice' => $l['unit'], 'quantity' => $l['qty'], 'lineTotal' => $l['total']]);
             }
             Activity::create(['orderId' => $o->id, 'toStatus' => 'nouveau', 'createdAt' => now()]);
-            if (! $quote && ! empty($v['cartId'])) {
-                DB::table('Cart')->where('id', $v['cartId'])->update(['status' => 'récupéré', 'orderNumber' => $number, 'updatedAt' => now()->getTimestampMs()]);
+            if (! empty($v['cartId'])) {
+                // « Transformer en demande de devis » : the cart is kept for analytics, marked as converted.
+                DB::table('Cart')->where('id', $v['cartId'])->where(fn ($q) => $q->whereNull('status')->orWhere('status', '!=', 'récupéré'))->update(['status' => 'devis', 'orderNumber' => $number, 'updatedAt' => now()->getTimestampMs()]);
             }
-            DB::table('Event')->insert(['type' => $quote ? 'quote_request' : 'order', 'path' => $quote ? '/devis' : '/commande', 'source' => $v['attribution']['utmSource'] ?? null, 'medium' => $v['attribution']['utmMedium'] ?? null, 'campaign' => $v['attribution']['utmCampaign'] ?? null, 'value' => $priced['total'] - ($coupon['discount'] ?? 0)]);
-            if (! $quote) {
-                return ['number' => $number];
-            }
+            DB::table('Event')->insert(['type' => 'quote_request', 'path' => '/devis', 'source' => $v['attribution']['utmSource'] ?? null, 'medium' => $v['attribution']['utmMedium'] ?? null, 'campaign' => $v['attribution']['utmCampaign'] ?? null, 'value' => $priced['total']]);
             $name = ($v['clientType'] ?? '') === 'entreprise' ? $v['company'] : $v['name'];
             $gen = ['client' => $name, 'telephone' => $phone, 'ville' => $v['city'], 'transport' => $transport, 'lignes' => array_map(function ($l) use ($v) {
                 return ['reference' => $l['id'], 'qte' => $l['qty']] + ($l['override'] ? ['prix_ttc_walfar' => $l['unit']] : []) + (str_starts_with($l['id'], 'AUTO-GBAT300') && ! empty($v['kitLeaf']) ? ['largeur_vantail_m' => $v['kitLeaf']] : []);

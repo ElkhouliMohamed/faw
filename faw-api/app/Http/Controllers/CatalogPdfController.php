@@ -16,7 +16,6 @@ class CatalogPdfController extends Controller
     {
         $attributes = Attribute::where('active', true)->where('showInSpecs', true)->get();
         $rows = [];
-        $show = PriceVisibility::showOnSite();
         foreach (Product::where('active', true)->orderBy('category')->orderBy('sortOrder')->get() as $p) {
             $values = json_decode($p->attributes ?? '{}', true) ?: [];
             $specs = [];
@@ -25,7 +24,9 @@ class CatalogPdfController extends Controller
                     $specs[$a->label] = $values[$a->key].($a->unit ? ' '.$a->unit : '');
                 }
             }
-            $rows[] = ['id' => $p->id, 'title' => $p->title, 'category' => $p->category, 'price' => $show ? $commerce->productPrice($p)['price'] : 0, 'priceToConfirm' => $show ? $p->priceToConfirm : true, 'specs' => (object) $specs];
+            // « Sur devis » products (or prices hidden globally) never print a price.
+            $show = ! PriceVisibility::quoteOnly($p);
+            $rows[] = ['id' => $p->id, 'title' => $p->title, 'category' => $p->category, 'price' => $show ? $commerce->productPrice($p)['price'] : 0, 'priceToConfirm' => ! $show, 'specs' => (object) $specs];
         }
         $tmp = tempnam(sys_get_temp_dir(), 'faw-catalog-');
         chmod($tmp, 0600);

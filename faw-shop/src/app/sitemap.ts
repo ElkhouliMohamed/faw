@@ -1,8 +1,8 @@
 import {publicConfig} from "@/lib/public-config";
-import {z} from "zod";
 import type { MetadataRoute } from "next";
 import { allProducts } from "@/lib/catalog";
 import { shopLandings } from "@/lib/shop-api";
+import { contentLinks } from "@/lib/content";
 import { categoryTree } from "@/lib/category-tree";
 import { SITE } from "@/lib/site";
 
@@ -27,8 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const landings = (await shopLandings()).map((l) => ({
     url: `${origin}/l/${l.slug}`, changeFrequency: "weekly" as const, priority: 0.6, ...(l.updatedAt ? { lastModified: new Date(l.updatedAt) } : {}),
   }));
-  const response=await fetch(`${process.env.LARAVEL_ORIGIN||"http://127.0.0.1:8000"}/api/content-links`,{cache:"no-store"}).catch(()=>null);
-  const links=response?.ok?z.array(z.object({kind:z.enum(["page","technology","blog"]),slug:z.string(),updated_at:z.string()})).parse(await response.json()):[];
+  const links=await contentLinks();
   const content=links.map(c=>entry(`/${c.kind==="page"?"pages":c.kind==="technology"?"technologies":"blog"}/${c.slug}`,0.5,new Date(c.updated_at)));
   return [...content,...pages, ...extra, ...cats, ...products, ...landings];
 }

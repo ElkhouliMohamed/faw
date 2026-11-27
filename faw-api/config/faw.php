@@ -5,6 +5,8 @@ return [
     'output' => env('DEVIS_OUTPUT_DIR', storage_path('app/private/devis')), 'python' => env('PYTHON_BIN', 'python3'),
     'resend_key' => env('RESEND_API_KEY'), 'email_from' => env('QUOTE_EMAIL_FROM'), 'email_reply_to' => env('QUOTE_EMAIL_REPLY_TO'),
     'site_url' => env('APP_URL'),
+    // Public storefront origin (CMI return / callback URLs). Defaults to APP_URL (the shop proxies /api to Laravel).
+    'shop_url' => env('FAW_SHOP_URL', env('APP_URL')),
     // Lifetime of a customer quote link (days). Revocation and regeneration from Filament.
     'quote_link_ttl_days' => (int) env('QUOTE_LINK_TTL_DAYS', 90),
 

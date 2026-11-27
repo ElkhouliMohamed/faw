@@ -1,12 +1,22 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { cachedRedirect, rememberRedirect } from "@/lib/redirect-cache";
 const resolvedRedirect = z.object({ to: z.string().regex(/^\/(?!\/)/), code: z.union([z.literal(301), z.literal(302)]) });
+/** Redirection SEO du back-office ; réponse (redirection ou absence) gardée 60 s en mémoire, vidée par /revalidate. */
 async function matchRedirect(pathname: string) {
+  const known = cachedRedirect(pathname);
+  if (known !== undefined) return known;
   try {
     const origin = process.env.LARAVEL_ORIGIN || "http://127.0.0.1:8000";
     const response = await fetch(`${origin}/api/redirects/resolve?path=${encodeURIComponent(pathname)}`, { cache: "no-store", signal: AbortSignal.timeout(1500) });
-    if (response.status !== 200) return null;
-    return resolvedRedirect.parse(await response.json());
+    if (response.status === 204) {
+      rememberRedirect(pathname, null);
+      return null;
+    }
+    if (response.status !== 200) return null; // erreur ou limite atteinte : pas de mise en cache
+    const hit = resolvedRedirect.parse(await response.json());
+    rememberRedirect(pathname, hit);
+    return hit;
   } catch { return null; }
 }
 

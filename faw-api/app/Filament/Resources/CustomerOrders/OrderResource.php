@@ -158,7 +158,7 @@ class OrderResource extends OwnerResource
         })->implode('');
         $bank = BankTransferProvider::bank();
 
-        return new HtmlString('<ul style="font-size:13px">'.($rows ?: '<li>Aucun paiement.</li>').'</ul><p style="font-size:12px;opacity:.7">RIB affiché au client : '.e($bank['rib'] ?? 'non configuré (« RIB communiqué par FAW »)').'. Paiement par carte : désactivé.</p>');
+        return new HtmlString('<ul style="font-size:13px">'.($rows ?: '<li>Aucun paiement.</li>').'</ul><p style="font-size:12px;opacity:.7">RIB affiché au client : '.e($bank['rib'] ?? 'non configuré (« RIB communiqué par FAW »)').'. Paiement par carte : '.(\App\Services\CheckoutSettings::cmiReady() ? 'CMI activé' : 'désactivé').'.</p>');
     }
 
     public static function table(Table $table): Table

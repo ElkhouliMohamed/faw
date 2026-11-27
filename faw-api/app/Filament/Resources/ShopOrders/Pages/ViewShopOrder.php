@@ -19,6 +19,7 @@ class ViewShopOrder extends ViewRecord
     {
         return [
             ShopOrderResource::changeStatusAction(),
+            ...ShopOrderResource::paymentActions(),
             EditAction::make()->label('Modifier'),
         ];
     }

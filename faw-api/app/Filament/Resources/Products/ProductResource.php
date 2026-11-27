@@ -120,7 +120,10 @@ class ProductResource extends OwnerResource
                             ->schema([
                                 TextInput::make('price')->label('Prix TTC (DH)')->maxLength(255)->numeric()->minValue(0)->required()
                                     ->helperText('Prix toutes taxes comprises, en dirhams.'),
-                                Select::make('salesMode')->label('Mode de vente')->options(Product::SALES_MODES)->default('quote_only')->required()->helperText('Tant que les prix sont masqués, le site public reste en « devis uniquement » quel que soit ce choix.'),
+                                Select::make('salesMode')->label('Mode de vente')->options(Product::SALES_MODES)->default('direct')->required()->native(false)
+                                    ->helperText('« Achat en ligne » : prix TTC et HT affichés, ajout au panier et commande. « Sur devis » : aucun prix sur le site, bouton « Demander un devis ». Si les prix sont masqués dans Réglages boutique, tout passe en devis.'),
+                                TextInput::make('maxOnlineQty')->label('Quantité max en ligne')->integer()->minValue(1)->maxValue(999)->nullable()
+                                    ->helperText('Facultatif. Au-delà, le panier propose de transformer la commande en demande de devis (gros volumes).'),
                                 Toggle::make('priceToConfirm')->label('Prix à confirmer')
                                     ->helperText('Indique au client que le prix doit être confirmé par l’équipe.'),
                             ])
@@ -188,6 +191,7 @@ class ProductResource extends OwnerResource
                 TextColumn::make('title')->label('Produit')->searchable()->sortable()->wrap(),
                 TextColumn::make('category')->label('Catégorie')->searchable()->toggleable(),
                 TextColumn::make('price')->label('Prix TTC')->formatStateUsing(fn ($state) => number_format($state, 0, ',', ' ').' DH TTC')->sortable(),
+                TextColumn::make('salesMode')->label('Vente')->badge()->formatStateUsing(fn ($state) => Product::SALES_MODES[$state] ?? 'Sur devis')->color(fn ($state) => $state === 'direct' ? 'success' : 'warning')->toggleable(),
                 TextColumn::make('variantLabel')->label('Variante'),
                 TextColumn::make('availability')->label('Disponibilité'),
                 IconColumn::make('active')->label('Actif')->boolean(),
@@ -195,6 +199,7 @@ class ProductResource extends OwnerResource
             ->filters([
                 SelectFilter::make('category')->label('Catégorie')->options(fn () => Category::pluck('label', 'label')->all()),
                 SelectFilter::make('availability')->label('Disponibilité')->options(self::AVAILABILITIES),
+                SelectFilter::make('salesMode')->label('Mode de vente')->options(Product::SALES_MODES),
                 TernaryFilter::make('active')->label('Actif'),
             ])
             ->defaultSort('id', 'desc')

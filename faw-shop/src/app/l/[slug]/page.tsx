@@ -8,7 +8,7 @@ import { stripPriceMentions } from "@/lib/format";
 import { shopLanding } from "@/lib/shop-api";
 import { breadcrumbLd, faqLd, ldJson, nonce } from "@/lib/seo";
 
-export const dynamic = "force-dynamic";
+// Rendu à la demande (le layout lit la langue et le nonce CSP) ; données servies par le cache Next ("landings", "catalog").
 const load = (slug: string) => shopLanding(slug);
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {

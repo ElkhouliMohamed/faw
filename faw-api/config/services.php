@@ -28,6 +28,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Next storefront on-demand revalidation (App\Services\StorefrontCache). Same secret as REVALIDATE_SECRET in faw-shop.
+    'storefront' => [
+        'revalidate_url' => env('SHOP_REVALIDATE_URL'),
+        'revalidate_secret' => env('SHOP_REVALIDATE_SECRET'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

@@ -34,7 +34,7 @@ class CompatibilityController extends Controller
     public function cart(Request $r, QuoteService $service)
     {
         $this->guard($r, 6000);
-        $v = $r->validate(['id' => ['required', 'regex:/^[a-z0-9]{16,40}$/'], 'items' => ['present', 'array', 'max:40'], 'items.*.id' => ['required', 'string', 'max:90'], 'items.*.qty' => ['required', 'integer', 'min:1', 'max:99'], 'name' => ['nullable', 'string', 'max:120'], 'phone' => ['nullable', 'regex:/^[+\d\s().-]{8,30}$/'], 'email' => ['nullable', 'email', 'max:160'], 'utmSource' => ['nullable', 'string', 'max:60'], 'utmCampaign' => ['nullable', 'string', 'max:100']]);
+        $v = $r->validate(['id' => ['required', 'regex:/^[a-z0-9]{16,40}$/'], 'items' => ['present', 'array', 'max:40'], 'items.*.id' => ['required', 'string', 'max:90'], 'items.*.qty' => ['required', 'integer', 'min:1', 'max:999'], 'name' => ['nullable', 'string', 'max:120'], 'phone' => ['nullable', 'regex:/^[+\d\s().-]{8,30}$/'], 'email' => ['nullable', 'email', 'max:160'], 'utmSource' => ['nullable', 'string', 'max:60'], 'utmCampaign' => ['nullable', 'string', 'max:100']]);
         $existing = DB::table('Cart')->where('id', $v['id'])->first();
         if ($existing?->status === 'récupéré') {
             return response()->noContent();

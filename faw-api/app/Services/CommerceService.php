@@ -181,7 +181,13 @@ class CommerceService
         return ['code' => $c->code, 'discount' => $discount];
     }
 
-    public function shipping(array $lines, string $mode): array
+    /**
+     * Delivery modes allowed for these (priced) lines: city slugs, « autre » (doors) / « livraison », « retrait »,
+     * or only « transporteur » for a kit-only cart.
+     *
+     * @return array{allowed: list<string>, kitOnly: bool, doors: bool, items: list<array{id: string, category: ?string, family: string}>}
+     */
+    public function deliveryModes(array $lines): array
     {
         $families = [];
         $items = [];
@@ -192,8 +198,30 @@ class CommerceService
         }
         $doors = in_array('portes-coupe-feu', $families);
         $kitOnly = count($families) > 0 && count(array_unique($families)) === 1 && $families[0] === 'automatisme';
+        $cities = ShippingCity::where('active', true)->where('available', true)->orderBy('sortOrder')->pluck('slug')->all();
+        $allowed = $doors ? [...$cities, 'autre', 'retrait'] : ($kitOnly ? ['transporteur'] : [...$cities, 'livraison', 'retrait']);
+
+        return ['allowed' => $allowed, 'kitOnly' => $kitOnly, 'doors' => $doors, 'items' => $items];
+    }
+
+    /** Requested mode if allowed; otherwise the generic delivery mode for this cart (never an error). */
+    public function resolveMode(array $lines, ?string $requested, bool $pickup = false): string
+    {
+        $m = $this->deliveryModes($lines);
+        if ($pickup && in_array('retrait', $m['allowed'], true)) {
+            return 'retrait';
+        }
+        if ($requested !== null && in_array($requested, $m['allowed'], true)) {
+            return $requested;
+        }
+
+        return $m['kitOnly'] ? 'transporteur' : ($m['doors'] ? 'autre' : 'livraison');
+    }
+
+    public function shipping(array $lines, string $mode): array
+    {
+        ['allowed' => $allowed, 'kitOnly' => $kitOnly, 'items' => $items] = $this->deliveryModes($lines);
         $cities = ShippingCity::where('active', true)->where('available', true)->get();
-        $allowed = $doors ? [...$cities->pluck('slug')->all(), 'autre', 'retrait'] : ($kitOnly ? ['transporteur'] : [...$cities->pluck('slug')->all(), 'livraison', 'retrait']);
         if (! in_array($mode, $allowed, true)) {
             throw ValidationException::withMessages(['deliveryMode' => 'Mode de livraison non disponible.']);
         }

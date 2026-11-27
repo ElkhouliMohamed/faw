@@ -4,6 +4,7 @@ import { z } from "zod";
 import { categoryOf, csv, familyOf, merch, type Merch } from "./merch";
 import { AVAILABILITIES, type Product, categoryKey, type CategoryKey, toPublic, type PublicProduct } from "./products";
 import { showPublicPrices } from "./price-visibility";
+import { publicJson } from "./shop-api";
 
 /** Enrichit un produit : catégorie, famille et badges. Le prix actif (promotion en cours, prix barré) est calculé par Laravel. */
 function decorate(p: Product, m: Merch): Product {
@@ -26,15 +27,16 @@ const apiProduct = z.object({
   basePrice: z.number().int().optional(), compareAt: z.number().int().nullable().optional(), promoName: z.string().nullable().optional(), orderable: z.boolean().optional(), badges: z.string().optional(), warrantyId: z.number().nullable().optional(),
   updatedAt: z.string().nullable().optional(), metaTitle: z.string().optional(), metaDescription: z.string().optional(), h1: z.string().optional(), attributes: z.string().optional(),
   details: z.string().nullable().optional(), installationGuide: z.string().nullable().optional(),
+  priceMode: z.enum(["online", "quote"]).optional().catch(undefined), maxOnlineQty: z.number().int().positive().nullable().optional().catch(null),
   datasheet: z.string().regex(/^\/storage\/fiches-techniques\/[a-zA-Z0-9_.-]+\.pdf$/).nullable().optional().catch(null),
   maintenanceGuide: z.string().regex(/^\/storage\/guides-pose-entretien\/[a-zA-Z0-9_.-]+\.pdf$/).nullable().optional().catch(null),
 });
 /** Un seul appel API par rendu (React cache) : la limite Laravel du catalogue est partagée par tous les visiteurs (127.0.0.1). */
 const baseProducts = cache(async function baseProducts(): Promise<Product[]> {
-  const origin = process.env.LARAVEL_ORIGIN || "http://127.0.0.1:8000";
-  const response = await fetch(`${origin}/api/catalog`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
-  if (!response.ok) throw new Error("Catalogue temporairement indisponible");
-  return apiProduct.array().parse(await response.json()).map(({ updatedAt, ...p }) => ({ ...p, price: p.price ?? p.basePrice ?? 0, orderable: p.orderable, updatedAt: updatedAt ? new Date(updatedAt) : undefined }));
+  // Cache Next (étiquette "catalog", 120 s max), vidé par Laravel à chaque modification de produit / promotion.
+  const data = await publicJson("/api/catalog", "catalog", 10000);
+  if (data == null) throw new Error("Catalogue temporairement indisponible");
+  return apiProduct.array().parse(data).map(({ updatedAt, ...p }) => ({ ...p, price: p.price ?? p.basePrice ?? 0, orderable: p.orderable, updatedAt: updatedAt ? new Date(updatedAt) : undefined }));
 });
 export async function getProduct(slug: string) {
   return (await allProducts()).find((p) => p.slug === slug.toLowerCase());

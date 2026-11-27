@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Activity;
 use App\Models\CustomerOrder;
 use App\Models\Payment;
 use App\Models\PaymentTransaction;
+use App\Models\ShopOrder;
 use App\Models\User;
 use App\Payments\BankTransferProvider;
 use App\Payments\PaymentProviders;
@@ -18,7 +20,8 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Payment schedule + bank-transfer verification. Amounts are typed by FAW and must add up exactly to the
- * order total: no percentage, no fee, no interest. Card payment is not offered (disabled adapter).
+ * order total: no percentage, no fee, no interest. Quote orders (CustomerOrder) and site orders (ShopOrder,
+ * one payment of the full total, method chosen at checkout) share the same payment rows and audit trail.
  */
 class PaymentService
 {
@@ -44,6 +47,34 @@ class PaymentService
     public function createDefaultSchedule(CustomerOrder $order): void
     {
         $this->writeSchedule($order, [['label' => 'Paiement intégral', 'amount' => $order->total_ttc]], null, 'system', null);
+    }
+
+    /** Site checkout: one payment of the full total with the chosen method (virement | reception | carte). */
+    public function createShopPayment(ShopOrder $order, string $method): Payment
+    {
+        $provider = CheckoutSettings::PROVIDERS[$method] ?? 'bank_transfer';
+        $day = substr((string) $order->number, 4, 6);
+        // Short public reference (bank transfer label, CMI order id): never the full private order number.
+        $reference = 'FAW-'.$day.'-'.substr((string) $order->number, 11, 6).'-P1';
+        if (Payment::where('reference', $reference)->exists()) {
+            $reference = 'FAW-'.$day.'-'.strtoupper(bin2hex(random_bytes(4))).'-P1';
+        }
+        $pay = Payment::create(['shop_order_id' => $order->id, 'position' => 1, 'label' => 'Paiement intégral', 'amount' => (int) $order->total, 'currency' => 'MAD',
+            'provider' => $provider, 'reference' => $reference, 'status' => PaymentStatus::Awaiting]);
+        $this->log($pay, 'created', null, PaymentStatus::Awaiting, null, 'system', 'Commande passée sur le site ('.ShopOrder::paymentLabel($method).').');
+
+        return $pay;
+    }
+
+    /** CMI notification refused / failed: the payment stays open (the customer may retry), the order shows the failure. */
+    public function markFailed(Payment $payment, string $note, ?string $ip = null, array $meta = []): void
+    {
+        DB::transaction(function () use ($payment, $note, $ip, $meta) {
+            $this->log($payment, 'failed', $payment->status, $payment->status, null, 'webhook', $note, $ip, $meta ?: null);
+            if ($payment->shop_order_id && $payment->status !== PaymentStatus::Confirmed) {
+                ShopOrder::whereKey($payment->shop_order_id)->update(['paymentStatus' => 'echec']);
+            }
+        });
     }
 
     /**
@@ -123,8 +154,14 @@ class PaymentService
             $payment->forceFill(['proof_path' => $path, 'proof_mime' => $mime, 'proof_size' => $file->getSize(), 'proof_uploaded_at' => now()])->save();
             $this->move($payment, PaymentStatus::PendingVerification, 'proof_uploaded', null, 'customer', 'Justificatif de virement déposé par le client.', $ip, ['mime' => $mime, 'size' => $file->getSize()]);
         });
-        $order = $payment->order;
-        $this->notifyTeam($order, "Justificatif de virement reçu pour {$payment->reference} ({$payment->amount} {$payment->currency}). À vérifier par la finance.", 'proof-'.$payment->id.'-'.$payment->proof_uploaded_at?->timestamp);
+        $details = "Justificatif de virement reçu pour {$payment->reference} ({$payment->amount} {$payment->currency}). À vérifier par la finance.";
+        $key = 'proof-'.$payment->id.'-'.$payment->proof_uploaded_at?->timestamp;
+        if ($payment->shop_order_id) {
+            ShopOrder::whereKey($payment->shop_order_id)->update(['paymentStatus' => 'en_verification']);
+            $this->notifyTeamShop($payment->shopOrder()->firstOrFail(), $details, $key);
+        } else {
+            $this->notifyTeam($payment->order, $details, $key);
+        }
 
         return ['ok' => true, 'code' => 'proof_saved'];
     }
@@ -145,7 +182,11 @@ class PaymentService
             }
             $p->forceFill(['confirmed_at' => now(), 'confirmed_by' => $user?->id, 'provider_transaction_id' => $transactionId ?? $p->provider_transaction_id])->save();
             $this->move($p, PaymentStatus::Confirmed, 'confirmed', $user, $source, $note);
-            $this->syncOrder($p->order()->firstOrFail());
+            if ($p->shop_order_id) {
+                $this->syncShopOrder($p->shopOrder()->firstOrFail());
+            } else {
+                $this->syncOrder($p->order()->firstOrFail());
+            }
 
             return $p;
         });
@@ -166,6 +207,9 @@ class PaymentService
                 throw ValidationException::withMessages(['payment' => 'Seul un justificatif en vérification peut être refusé.']);
             }
             $this->move($p, PaymentStatus::Rejected, 'rejected', $user, 'admin', $note);
+            if ($p->shop_order_id) {
+                ShopOrder::whereKey($p->shop_order_id)->update(['paymentStatus' => 'echec']);
+            }
 
             return $p;
         });
@@ -185,6 +229,21 @@ class PaymentService
         }
     }
 
+    /** Site order: fully paid -> « Payée », and a new order moves to « Confirmé » (history row like the back office). */
+    private function syncShopOrder(ShopOrder $order): void
+    {
+        $paid = (int) Payment::where('shop_order_id', $order->id)->where('status', PaymentStatus::Confirmed->value)->sum('amount');
+        if ($paid < (int) $order->total) {
+            return;
+        }
+        $order->update(['paymentStatus' => 'paye']);
+        if (in_array((string) $order->status, ['nouveau', 'à contacter', 'en cours'], true)) {
+            $from = (string) $order->status;
+            $order->update(['status' => 'confirmé']);
+            Activity::create(['orderId' => $order->id, 'fromStatus' => $from, 'toStatus' => 'confirmé', 'createdAt' => now()]);
+        }
+    }
+
     private function move(Payment $p, PaymentStatus $to, string $type, ?User $user, string $source, ?string $note, ?string $ip = null, ?array $meta = null): void
     {
         $from = $p->status;
@@ -194,7 +253,7 @@ class PaymentService
 
     private function log(Payment $p, string $type, ?PaymentStatus $from, PaymentStatus $to, ?User $user, string $source, ?string $note, ?string $ip = null, ?array $meta = null): void
     {
-        PaymentTransaction::create(['payment_id' => $p->id, 'customer_order_id' => $p->customer_order_id, 'type' => $type, 'from_status' => $from?->value, 'to_status' => $to->value,
+        PaymentTransaction::create(['payment_id' => $p->id, 'customer_order_id' => $p->customer_order_id, 'shop_order_id' => $p->shop_order_id, 'type' => $type, 'from_status' => $from?->value, 'to_status' => $to->value,
             'amount' => $p->amount, 'note' => $note ? mb_substr($note, 0, 1000) : null, 'source' => $source, 'user_id' => $user?->id, 'ip' => $ip, 'meta' => $meta]);
     }
 
@@ -204,6 +263,32 @@ class PaymentService
         if ($to) {
             $this->mail->send($to, 'FAW — commande '.$order->reference.' : paiement', "Commande {$order->reference} — {$order->client_name} ({$order->city}).\n{$details}\n\nÀ traiter dans le back-office FAW (Commandes clients).", 'faw-team-order-'.$order->id.'-'.$key);
         }
+    }
+
+    private function notifyTeamShop(ShopOrder $order, string $details, string $key): void
+    {
+        $to = TransactionalMail::teamAddress();
+        if ($to) {
+            $short = substr((string) $order->number, 0, 17);
+            $this->mail->send($to, 'FAW — commande site '.$short.' : paiement', "Commande site {$short}… — {$order->customerName} ({$order->city}).\n{$details}\n\nÀ traiter dans le back-office FAW (Commandes / demandes).", 'faw-team-shop-order-'.$order->id.'-'.$key);
+        }
+    }
+
+    /** Payment block of the site order confirmation page (reached with the private order number only). */
+    public function shopOrderState(ShopOrder $order): ?array
+    {
+        $p = Payment::where('shop_order_id', $order->id)->where('status', '!=', PaymentStatus::Cancelled->value)->orderBy('id')->first();
+        if (! $p) {
+            return null;
+        }
+        $prov = $this->providers->get($p->provider);
+        $open = in_array($p->status, [PaymentStatus::Awaiting, PaymentStatus::Rejected], true) && ! in_array((string) $order->status, ShopOrder::FINAL, true);
+
+        return ['reference' => $p->reference, 'amount' => (int) $p->amount, 'currency' => $p->currency, 'status' => $p->status->value, 'method' => $p->provider,
+            'proofUploaded' => $p->proof_uploaded_at !== null, 'canUploadProof' => (bool) $prov?->acceptsProof() && $open,
+            'canPayByCard' => $p->provider === 'cmi' && $open && (bool) $prov?->enabled(),
+            'bank' => $p->provider === 'bank_transfer' ? BankTransferProvider::bank() : null,
+            'proofRules' => ['types' => ['pdf', 'jpg', 'png'], 'maxBytes' => self::PROOF_MAX_BYTES]];
     }
 
     public function portalState(CustomerOrder $order): array

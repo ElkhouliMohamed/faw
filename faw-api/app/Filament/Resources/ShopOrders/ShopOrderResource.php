@@ -4,8 +4,12 @@ namespace App\Filament\Resources\ShopOrders;
 
 use App\Filament\Resources\OwnerResource;
 use App\Models\Activity;
+use App\Models\Payment;
 use App\Models\ShopOrder;
 use App\Models\User;
+use App\Services\CheckoutService;
+use App\Services\PaymentService;
+use App\Support\PaymentStatus;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
@@ -140,12 +144,15 @@ class ShopOrderResource extends OwnerResource
                 TextEntry::make('status')->label('Statut')->badge()->formatStateUsing(fn ($state) => ShopOrder::statusLabel($state))->color(fn ($state) => static::statusColor($state)),
                 TextEntry::make('createdAt')->label('Reçue le')->dateTime('d/m/Y H:i', 'Africa/Casablanca'),
                 TextEntry::make('paymentMethod')->label('Mode de paiement')->formatStateUsing(fn ($state) => ShopOrder::paymentLabel($state)),
+                TextEntry::make('paymentStatus')->label('Paiement')->badge()->placeholder('—')->formatStateUsing(fn ($state) => ShopOrder::paymentStatusLabel($state))->color(fn ($state) => static::paymentColor($state)),
+                TextEntry::make('clientType')->label('Client')->placeholder('—')->formatStateUsing(fn ($state) => $state === 'entreprise' ? 'Entreprise' : 'Particulier'),
                 TextEntry::make('deliveryMode')->label('Livraison')->placeholder('—'),
                 TextEntry::make('deliveryNote')->label('Transport')->placeholder('—'),
                 TextEntry::make('subtotal')->label('Sous-total TTC')->formatStateUsing($dh),
                 TextEntry::make('deliveryFee')->label('Frais de livraison')->formatStateUsing($dh),
                 TextEntry::make('couponCode')->label('Code promo')->placeholder('—')->formatStateUsing(fn ($state, $record) => $state.' (−'.(int) $record->couponDiscount.' DH)'),
                 TextEntry::make('total')->label('Total TTC')->formatStateUsing($dh)->weight('bold'),
+                TextEntry::make('total_ht')->label('Total HT / TVA '.CheckoutService::TAX_RATE.' %')->state(fn (ShopOrder $record) => CheckoutService::money(CheckoutService::ht((int) $record->total)).' HT — TVA '.CheckoutService::money((int) $record->total - CheckoutService::ht((int) $record->total))),
             ])->columns(['default' => 1, 'md' => 2, 'xl' => 3])->columnSpanFull(),
             Section::make('Client')->schema([
                 TextEntry::make('customerName')->label('Client'),
@@ -156,6 +163,9 @@ class ShopOrderResource extends OwnerResource
                 TextEntry::make('city')->label('Ville'),
                 TextEntry::make('address')->label('Adresse')->placeholder('—')->columnSpanFull(),
             ])->columns(['default' => 1, 'md' => 2]),
+            Section::make('Paiement')->schema([
+                TextEntry::make('payments_html')->hiddenLabel()->state(fn (ShopOrder $record) => static::paymentsHtml($record))->html()->columnSpanFull(),
+            ])->visible(fn (ShopOrder $record) => Payment::where('shop_order_id', $record->id)->exists())->columnSpanFull(),
             Section::make('Articles')->schema([
                 TextEntry::make('items_html')->hiddenLabel()->state(fn (ShopOrder $record) => static::itemsHtml($record))->html()->columnSpanFull(),
             ]),
@@ -179,6 +189,69 @@ class ShopOrderResource extends OwnerResource
             ->map(fn ($l) => '<tr><td>'.e($l->quantity).'</td><td>'.e($l->title).'</td><td style="text-align:right">'.e($l->unitPrice).'</td><td style="text-align:right">'.e($l->lineTotal).'</td></tr>')->implode('');
 
         return new HtmlString('<table style="width:100%;font-size:13px"><thead><tr style="text-align:left"><th>Qté</th><th>Article</th><th style="text-align:right">PU TTC (DH)</th><th style="text-align:right">Total TTC (DH)</th></tr></thead><tbody>'.($rows ?: '<tr><td colspan="4">Aucun article.</td></tr>').'</tbody></table>');
+    }
+
+    public static function paymentColor(?string $state): string
+    {
+        return match ($state) {
+            'paye' => 'success',
+            'en_verification' => 'warning',
+            'echec' => 'danger',
+            'a_la_livraison', 'en_attente' => 'info',
+            default => 'gray',
+        };
+    }
+
+    public static function paymentsHtml(ShopOrder $o): HtmlString
+    {
+        $rows = Payment::where('shop_order_id', $o->id)->orderBy('id')->get()->map(function (Payment $p) {
+            $proof = $p->proof_path && PaymentService::canSchedule(static::user()) ? ' — <a style="text-decoration:underline" target="_blank" rel="noopener" href="'.e(route('admin.payment.proof', $p)).'">justificatif</a>' : '';
+            $tx = $p->transactions->map(fn ($t) => '<li>'.e($t->created_at?->setTimezone('Africa/Casablanca')->format('d/m/Y H:i')).' — '.e($t->type).($t->to_status ? ' → '.e(PaymentStatus::from($t->to_status)->label()) : '').' ('.e($t->user_id ? (User::find($t->user_id)?->name ?? '#'.$t->user_id) : $t->source).')'.($t->note ? ' : '.e($t->note) : '').'</li>')->implode('');
+            $method = ['bank_transfer' => 'Virement', 'cash_on_delivery' => 'À la livraison / au retrait', 'cmi' => 'Carte (CMI)'][$p->provider] ?? $p->provider;
+
+            return '<li style="margin-bottom:8px"><strong>'.e($method).'</strong> — '.e(CheckoutService::money((int) $p->amount)).' — réf. <code>'.e($p->reference).'</code> — '.e($p->status->label()).$proof.'<ul style="margin-left:16px;opacity:.8">'.$tx.'</ul></li>';
+        })->implode('');
+
+        return new HtmlString('<ul style="font-size:13px">'.($rows ?: '<li>Aucun paiement.</li>').'</ul>');
+    }
+
+    /** Finance validates the payment (transfer received, cash collected): same service and audit trail as quote orders. */
+    public static function paymentActions(): array
+    {
+        $open = fn (ShopOrder $o, array $statuses) => Payment::where('shop_order_id', $o->id)->whereIn('status', $statuses)->orderBy('id')->get()->mapWithKeys(fn ($p) => [$p->id => $p->reference.' — '.CheckoutService::money((int) $p->amount).' ('.$p->status->label().')'])->all();
+
+        return [
+            Action::make('validerPaiement')->label('Valider le paiement')->icon('heroicon-o-check-badge')->color('success')
+                ->visible(fn (ShopOrder $record) => PaymentService::canValidate(static::user()) && $open($record, [PaymentStatus::PendingVerification->value, PaymentStatus::Awaiting->value]) !== [])
+                ->schema([
+                    Select::make('payment')->label('Paiement reçu')->options(fn (ShopOrder $record) => $open($record, [PaymentStatus::PendingVerification->value, PaymentStatus::Awaiting->value]))->required(),
+                    Textarea::make('note')->label('Note (ex. date de réception du virement, encaissement à la livraison)')->maxLength(500),
+                ])
+                ->action(function (ShopOrder $record, array $data) {
+                    abort_unless(PaymentService::canValidate(static::user()), 403);
+                    try {
+                        app(PaymentService::class)->confirm(Payment::where('shop_order_id', $record->id)->findOrFail($data['payment']), static::user(), $data['note'] ?? null);
+                        Notification::make()->title('Paiement confirmé')->success()->send();
+                    } catch (ValidationException $e) {
+                        Notification::make()->title('Validation refusée')->body(collect($e->errors())->flatten()->implode(' ; '))->danger()->send();
+                    }
+                }),
+            Action::make('rejeterJustificatif')->label('Refuser le justificatif')->icon('heroicon-o-x-circle')->color('danger')
+                ->visible(fn (ShopOrder $record) => PaymentService::canValidate(static::user()) && $open($record, [PaymentStatus::PendingVerification->value]) !== [])
+                ->schema([
+                    Select::make('payment')->label('Justificatif')->options(fn (ShopOrder $record) => $open($record, [PaymentStatus::PendingVerification->value]))->required(),
+                    Textarea::make('note')->label('Motif (visible dans l’historique)')->required()->maxLength(500),
+                ])
+                ->action(function (ShopOrder $record, array $data) {
+                    abort_unless(PaymentService::canValidate(static::user()), 403);
+                    try {
+                        app(PaymentService::class)->reject(Payment::where('shop_order_id', $record->id)->findOrFail($data['payment']), static::user(), (string) $data['note']);
+                        Notification::make()->title('Justificatif refusé')->success()->send();
+                    } catch (ValidationException $e) {
+                        Notification::make()->title('Refus impossible')->body(collect($e->errors())->flatten()->implode(' ; '))->danger()->send();
+                    }
+                }),
+        ];
     }
 
     public static function historyHtml(ShopOrder $o): HtmlString
@@ -217,12 +290,14 @@ class ShopOrderResource extends OwnerResource
             TextColumn::make('city')->label('Ville')->searchable()->toggleable(),
             TextColumn::make('status')->label('Statut')->badge()->formatStateUsing(fn ($state) => ShopOrder::statusLabel($state))->color(fn ($state) => static::statusColor($state)),
             TextColumn::make('paymentMethod')->label('Paiement')->formatStateUsing(fn ($state) => ShopOrder::paymentLabel($state))->toggleable(),
+            TextColumn::make('paymentStatus')->label('État paiement')->badge()->placeholder('—')->formatStateUsing(fn ($state) => ShopOrder::paymentStatusLabel($state))->color(fn ($state) => static::paymentColor($state))->toggleable(),
             TextColumn::make('total')->label('Total')->suffix(' DH TTC')->sortable(),
             TextColumn::make('createdAt')->label('Date')->dateTime('d/m/Y H:i', 'Africa/Casablanca')->sortable(),
         ])->defaultSort('createdAt', 'desc')
             ->filters([
                 SelectFilter::make('status')->label('Statut')->options(ShopOrder::STATUSES),
                 SelectFilter::make('paymentMethod')->label('Paiement')->options(ShopOrder::PAYMENT_METHODS),
+                SelectFilter::make('paymentStatus')->label('État paiement')->options(ShopOrder::PAYMENT_STATUSES),
             ])
             ->recordActions([ViewAction::make()->label('Ouvrir'), EditAction::make()->label('Modifier')]);
     }

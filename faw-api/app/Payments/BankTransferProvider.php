@@ -3,9 +3,10 @@
 namespace App\Payments;
 
 use App\Models\Payment;
+use App\Services\CheckoutSettings;
 use Illuminate\Http\Request;
 
-/** Virement bancaire : coordonnées lues uniquement depuis la config (FAW_BANK_*), jamais inventées. */
+/** Virement bancaire : coordonnées lues depuis le back-office ou la config (FAW_BANK_*), jamais inventées. */
 class BankTransferProvider implements PaymentProvider
 {
     public function key(): string
@@ -18,16 +19,16 @@ class BankTransferProvider implements PaymentProvider
         return 'Virement bancaire';
     }
 
+    /** Always valid for existing payments (quote orders); the checkout offer follows CheckoutSettings. */
     public function enabled(): bool
     {
         return true;
     }
 
+    /** Back-office values (Réglages boutique) first, then FAW_BANK_*; null = « communiqué par FAW ». */
     public static function bank(): array
     {
-        $v = fn (string $k) => ($s = trim((string) config('faw.bank.'.$k))) !== '' ? $s : null;
-
-        return ['rib' => $v('rib'), 'iban' => $v('iban'), 'holder' => $v('holder'), 'bankName' => $v('bank_name'), 'branch' => $v('branch'), 'swift' => $v('swift')];
+        return CheckoutSettings::bank();
     }
 
     public function instructions(Payment $payment): array

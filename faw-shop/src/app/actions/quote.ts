@@ -22,6 +22,9 @@ export async function createQuote(_prev: QuoteFormState, fd: FormData): Promise<
     phone: /^[5-7]\d{8}$/.test(phone) ? `0${phone}` : phone,
     city: fd.get("city"), pickup: fd.get("pickup") === "1", items,
     note: fd.get("note") || "", custom: fd.get("custom") === "1", kitLeaf: kit ? Number(kit) : null,
+    // « Transformer en demande de devis » : le panier est marqué converti côté Laravel.
+    cartId: /^[a-z0-9]{16,40}$/.test(String(fd.get("cartId") || "")) ? String(fd.get("cartId")) : null,
+    fromCart: fd.get("fromCart") === "1",
   };
   let token: string;
   try {

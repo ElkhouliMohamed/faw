@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { alternates } from "@/lib/seo";
 import { getDict } from "@/lib/i18n-server";
-import { SITE } from "@/lib/site";
+import { siteContent } from "@/lib/site-content";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -25,7 +25,7 @@ function Block({ id, n, title, children }: { id?: string; n: string; title: stri
 const Dot = () => <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-copper" aria-hidden />;
 
 export default async function DeliveryPage() {
-  const { t, locale } = await getDict();
+  const [{ t, locale }, { contact }] = await Promise.all([getDict(), siteContent()]);
   return (
     <div className="shell pt-10 sm:pt-16">
       <p className="eyebrow text-copper">FAW Aluminium</p>
@@ -36,7 +36,7 @@ export default async function DeliveryPage() {
           <ul>
             <li><Dot />Casablanca et Rabat : <strong>transport à confirmer sur devis</strong></li>
             <li><Dot />Autres villes : sur devis</li>
-            <li><Dot />Retrait <strong>gratuit</strong> au dépôt : {SITE.depotAddress}</li>
+            <li><Dot />Retrait <strong>gratuit</strong> au dépôt : {contact.depotAddress}</li>
             <li><Dot />Le transport est facturé une seule fois par commande.</li>
           </ul>
         </Block>
@@ -50,7 +50,7 @@ export default async function DeliveryPage() {
         <Block n="03" title="Galandage et matériel incendie">
           <ul>
             <li><Dot />Livraison : sur devis.</li>
-            <li><Dot />Retrait au dépôt : {SITE.depotAddress}.</li>
+            <li><Dot />Retrait au dépôt : {contact.depotAddress}.</li>
           </ul>
         </Block>
         <Block n="04" title="Délais">
@@ -104,7 +104,7 @@ export default async function DeliveryPage() {
           </ul>
         </Block>
         <Block id="mentions" n="13" title="Mentions légales">
-          <p>FAW Aluminium · {SITE.address} · {SITE.email} · <span dir="ltr">{SITE.phone}</span></p>
+          <p>FAW Aluminium · {contact.address} · {contact.email} · <span dir="ltr">{contact.phone}</span></p>
         </Block>
       </div>
     </div>

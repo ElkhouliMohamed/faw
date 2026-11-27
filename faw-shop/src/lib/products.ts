@@ -42,6 +42,10 @@ export type Product = {
   maintenanceGuide?: string | null;
   /** Si fourni par l'API publique (nécessaire quand le prix n'est pas envoyé). */
   orderable?: boolean;
+  /** « online » : prix + panier ; « quote » : sur devis (produit sur devis, prix à confirmer ou prix masqués). Calculé par Laravel. */
+  priceMode?: PriceMode;
+  /** Quantité au-delà de laquelle le panier propose un devis (facultatif). */
+  maxOnlineQty?: number | null;
   /* Dérivés au chargement (catalog.ts) */
   /** Prix de base saisi au back-office (avant promotion). */
   basePrice?: number;
@@ -53,6 +57,7 @@ export type Product = {
   badgeList?: PublicBadge[];
 };
 export type PublicBadge = { label: string; tone: string };
+export type PriceMode = "online" | "quote";
 
 export type CategoryKey = "portes-coupe-feu" | "galandage" | "automatisme" | "incendie";
 
@@ -118,6 +123,10 @@ export type PublicProduct = {
   badges: PublicBadge[];
   /** Hauteur vérifiée des portes coupe-feu, déjà formatée (ex. « 212,5 cm »). */
   height?: string | null;
+  /** Vendu sur devis alors que la boutique vend en ligne : pas de prix ni d'ajout au panier, bouton « Demander un devis ». */
+  quoteOnly?: boolean;
+  /** Quantité max commandable en ligne (au-delà : devis). */
+  maxOnlineQty?: number | null;
 };
 const PRICE_BADGE = /%|\bDH\b|\bMAD\b|\d\s*%/i;
 export function publicBadges(badges: PublicBadge[] | undefined, showPrices: boolean): PublicBadge[] {
@@ -139,8 +148,12 @@ export function toPublic(p: Product, showPrices = false): PublicProduct {
     catSlug: p.catSlug ?? categoryKey(p),
     badges: publicBadges(p.badgeList, showPrices),
     height: doorHeight(p),
+    maxOnlineQty: p.maxOnlineQty ?? null,
   };
-  if (showPrices) {
+  // Prix masqués globalement : panier « demande de devis » (comportement historique). Sinon chaque produit suit son mode.
+  const quoteOnly = showPrices && (p.priceMode === "quote" || !(p.price > 0));
+  if (quoteOnly) base.quoteOnly = true;
+  if (showPrices && !quoteOnly) {
     base.price = p.price;
     base.compareAt = p.compareAt ?? null;
   }

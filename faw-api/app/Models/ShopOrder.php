@@ -24,10 +24,29 @@ class ShopOrder extends ShopModel
     public const PAYMENT_METHODS = [
         'virement' => 'Virement bancaire',
         'cheque' => 'Chèque',
-        'reception' => 'Paiement à la livraison',
+        'reception' => 'Paiement à la livraison / au retrait',
         'carte' => 'Carte bancaire (CMI)',
         'à définir' => 'À définir',
     ];
+
+    /** Payment state of a site order (follows its payment row; see PaymentService). */
+    public const PAYMENT_STATUSES = [
+        'en_attente' => 'En attente de paiement',
+        'en_verification' => 'Justificatif à vérifier',
+        'a_la_livraison' => 'À encaisser à la livraison / au retrait',
+        'paye' => 'Payée',
+        'echec' => 'Paiement refusé / échoué',
+    ];
+
+    public static function paymentStatusLabel(?string $status): string
+    {
+        return self::PAYMENT_STATUSES[(string) $status] ?? ((string) $status ?: '—');
+    }
+
+    public function payments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Payment::class, 'shop_order_id')->orderBy('id');
+    }
 
     protected $table = 'Order';
 
@@ -35,7 +54,7 @@ class ShopOrder extends ShopModel
 
     protected $guarded = [];
 
-    protected $casts = [];
+    protected $casts = ['cgvAccepted' => 'boolean'];
 
     public static function statusLabel(?string $status): string
     {

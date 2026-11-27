@@ -18,7 +18,8 @@ class AdminSmokeTest extends TestCase
     {
         (new ShopDefaultsSeeder)->run();
         Product::create(['id' => 'CF-EI60-90', 'slug' => 'cf-ei60-90', 'title' => 'Porte coupe-feu EI60 90 cm', 'seoTitle' => 'Porte coupe-feu EI60', 'description' => '90 cm', 'price' => 2200, 'category' => 'Portes coupe-feu', 'availability' => 'en stock', 'active' => true, 'updatedAt' => now()]);
-        $this->postJson('/api/orders', ['name' => 'Client Test', 'phone' => '0612345678', 'email' => 'client@example.test', 'city' => 'Casablanca', 'address' => '1 rue de test, Maarif', 'items' => [['id' => 'CF-EI60-90', 'qty' => 1]], 'paymentMethod' => 'virement'])->assertCreated();
+        \App\Models\SystemConfig::where('name', 'shop')->first()->saveForm(['showPrices' => true]); // online orders need public prices
+        $this->postJson('/api/orders', ['name' => 'Client Test', 'phone' => '0612345678', 'email' => 'client@example.test', 'city' => 'Casablanca', 'address' => '1 rue de test, Maarif', 'items' => [['id' => 'CF-EI60-90', 'qty' => 1]], 'paymentMethod' => 'virement', 'cgv' => true])->assertCreated();
 
         $this->actingAs(User::factory()->create(['role' => 'super_admin']));
         $this->get('/admin')->assertOk();

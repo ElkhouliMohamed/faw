@@ -49,7 +49,7 @@ export function useCart() {
 }
 
 const KEY = "faw-cart-v1";
-const MAX_QTY = 99;
+const MAX_QTY = 999; // au-delà de la limite en ligne d'un produit, le panier propose un devis
 
 /* ---------- Catalogue public (depuis la base, fourni par le layout) ---------- */
 const CatalogCtx = createContext<PublicProduct[]>([]);

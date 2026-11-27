@@ -20,6 +20,7 @@ import { issueFormToken } from "@/lib/security";
 import { ldJson, nonce, organizationLd } from "@/lib/seo";
 import { categoryTree } from "@/lib/category-tree";
 import { blogPosts } from "@/lib/content";
+import { siteContent, waHref } from "@/lib/site-content";
 
 const vietnam = Be_Vietnam_Pro({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-vietnam", display: "swap" });
 const arabic = IBM_Plex_Sans_Arabic({ subsets: ["arabic"], weight: ["400", "500", "600", "700"], variable: "--font-arabic", display: "swap", preload: false });
@@ -56,35 +57,70 @@ export const viewport: Viewport = {
   ],
 };
 
+/** Couleur des boutons choisie dans Filament (Thèmes) : remplace l'accent, texte clair ou foncé selon le contraste. */
+function brandColorStyle(hex: string | null): React.CSSProperties | undefined {
+  if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return undefined;
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  // contraste avec le blanc vs avec le brun profond (#2b1a0b, luminance ≈ 0.012)
+  const fg = (1.05 / (luminance + 0.05)) >= ((luminance + 0.05) / 0.062) ? "#ffffff" : "#2b1a0b";
+  return { "--primary": hex, "--flame": hex, "--sidebar-primary": hex, "--primary-foreground": fg, "--sidebar-primary-foreground": fg } as React.CSSProperties;
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const { locale, t } = await getDict();
-  const config=await publicConfig();
+  // Tous les appels en parallèle ; chacun est dédupliqué par React cache() et servi par le cache de données Next.
+  const [{ locale, t }, config, site, products, m, tree, posts, n] = await Promise.all([
+    getDict(),
+    publicConfig(),
+    siteContent(),
+    allProducts(),
+    merch(),
+    categoryTree(),
+    blogPosts(undefined, undefined, 1),
+    nonce(),
+  ]);
   const rawPixel = config?.integrations.pixelId || runtimeEnv("NEXT_PUBLIC_META_PIXEL_ID") || runtimeEnv("META_PIXEL_ID");
   const pixelId = (config?.integrations.pixelEnabled ?? true) && rawPixel && /^\d{5,20}$/.test(rawPixel) ? rawPixel : undefined;
   const rawGa = config?.integrations.gaId || runtimeEnv("NEXT_PUBLIC_GA_ID");
   const gaId = (config?.integrations.gaEnabled ?? true) && rawGa && /^G-[A-Z0-9]{4,20}$/.test(rawGa) ? rawGa : undefined;
-  const products = await allProducts();
   const showPrices = config?.shop?.showPrices === true;
   const catalog = products.map((p) => toPublic(p, showPrices));
   const shop = await shopConfig(products, showPrices);
-  const [tree, posts] = await Promise.all([categoryTree(), blogPosts(undefined, undefined, 1).catch(() => ({ data: [] as unknown[] }))]);
   const footerCats = tree.filter((c) => c.parentId == null).map((c) => ({ path: c.path, label: c.label }));
   // Popups actifs et en cours (filtrés et nettoyés par Laravel).
-  const popups: PublicPopup[] = (await merch()).popups;
+  const popups: PublicPopup[] = m.popups;
+  const { contact } = site;
+  const headerLinks = site.menus.header?.items ?? [
+    { label: t.nav.shop, url: "/produits" },
+    { label: t.nav.delivery, url: "/livraison" },
+    { label: t.nav.contact, url: "/contact" },
+  ];
   return (
-    <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} suppressHydrationWarning data-faw-accent={config?.theme.accent || "copper"} className={`${vietnam.variable} ${arabic.variable} ${config?.theme.mode === "dark" ? "dark" : ""}`}>
+    <html
+      lang={locale}
+      dir={locale === "ar" ? "rtl" : "ltr"}
+      suppressHydrationWarning
+      data-faw-accent={config?.theme.accent || "copper"}
+      className={`${vietnam.variable} ${arabic.variable} ${config?.theme.mode === "dark" ? "dark" : ""}`}
+      style={brandColorStyle(site.theme.primaryColor)}
+    >
       <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
         <a href="#contenu" className="sr-only z-[60] rounded-lg bg-primary px-3 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:start-3 focus:top-3">
           Aller au contenu
         </a>
         <script type="application/ld+json" dangerouslySetInnerHTML={ldJson(organizationLd(config?.shop?.showPrices === true))} />
-        <Providers defaultTheme={config?.theme.mode || "light"} locale={locale} catalog={catalog} shop={shop} formToken={issueFormToken()} nonce={await nonce()}>
+        <Providers defaultTheme={config?.theme.mode || "light"} locale={locale} catalog={catalog} shop={shop} formToken={issueFormToken()} nonce={n}>
           <AttributionCapture />
           <PageTracker />
           <ConsentedTracking gaId={gaId} pixelId={pixelId} adsId={config?.integrations.adsEnabled ? config.integrations.adsId || undefined:undefined} adsLabel={config?.integrations.adsLabel || undefined} />
-          <Header />
+          <Header
+            links={headerLinks}
+            contact={{ phone: contact.phone, phoneHref: contact.phoneHref, whatsappHref: waHref(contact), whatsappDisplay: contact.whatsappDisplay, email: contact.email, hours: contact.hours }}
+            logo={site.theme.logo}
+            logoDark={site.theme.logoDark}
+          />
           <main id="contenu">{children}</main>
-          <Footer t={t} socialConfig={config?.social} categories={footerCats} hasBlog={posts.data.length > 0} />
+          <Footer t={t} contact={contact} socials={site.socials} menus={site.menus} categories={footerCats} hasBlog={posts.data.length > 0} logoDark={site.theme.logoDark} />
           <FloatingWhatsApp config={config?.social} />
           <SiteBot />
           <ConsentBanner />

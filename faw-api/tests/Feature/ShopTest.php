@@ -90,6 +90,12 @@ class ShopTest extends TestCase
         return ['name' => 'Client test local', 'phone' => '0612345678', 'email' => 'delivered@resend.dev', 'city' => 'Casablanca', 'pickup' => true, 'items' => [['id' => 'CF-EI60-90', 'qty' => 1]]];
     }
 
+    /** Online order: prices shown on the site, CGV accepted, payment method chosen. */
+    protected function orderPayload(array $extra = []): array
+    {
+        return [...$this->payload(), 'paymentMethod' => 'virement', 'cgv' => true, ...$extra];
+    }
+
     protected function pending(): Quote
     {
         $this->rawToken = $this->postJson('/api/quotes', $this->payload())->assertCreated()->assertJsonPath('status', 'à valider')->json('token');
@@ -146,8 +152,11 @@ class ShopTest extends TestCase
 
     public function test_orders_are_priced_on_server_and_cards_rejected(): void
     {
-        $this->postJson('/api/orders', [...$this->payload(), 'paymentMethod' => 'cmi'])->assertUnprocessable();
-        $this->postJson('/api/orders', [...$this->payload(), 'paymentMethod' => 'virement', 'total' => 1])->assertCreated();
+        $this->postJson('/api/orders', $this->orderPayload())->assertUnprocessable(); // prices hidden: quote only
+        $this->showPublicPrices();
+        $this->postJson('/api/orders', $this->orderPayload(['paymentMethod' => 'cmi']))->assertUnprocessable();
+        $this->postJson('/api/orders', $this->orderPayload(['paymentMethod' => 'carte']))->assertUnprocessable()->assertJsonValidationErrors('paymentMethod'); // CMI off by default
+        $this->postJson('/api/orders', $this->orderPayload(['total' => 1]))->assertCreated();
         $this->assertDatabaseHas('Order', ['total' => 2200, 'status' => 'nouveau']);
     }
 
@@ -268,11 +277,14 @@ class ShopTest extends TestCase
         $this->assertTrue(Hash::check('local-test-only-password', $user->fresh()->password));
     }
 
-    public function test_order_transport_is_charged_once_and_reception_is_kit_only(): void
+    public function test_order_transport_is_charged_once_and_reception_follows_the_payment_settings(): void
     {
-        $this->postJson('/api/orders', [...$this->payload(), 'pickup' => false, 'deliveryMode' => 'casablanca', 'address' => 'Adresse de test locale', 'paymentMethod' => 'virement'])->assertCreated();
+        $this->showPublicPrices();
+        $this->postJson('/api/orders', $this->orderPayload(['pickup' => false, 'deliveryMode' => 'casablanca', 'address' => 'Adresse de test locale']))->assertCreated();
         $this->assertDatabaseHas('Order', ['subtotal' => 2200, 'deliveryFee' => 400, 'total' => 2600]);
-        $this->postJson('/api/orders', [...$this->payload(), 'paymentMethod' => 'reception'])->assertUnprocessable();
+        $this->postJson('/api/orders', $this->orderPayload(['paymentMethod' => 'reception']))->assertCreated();
+        SystemConfig::where('name', 'shop')->first()->saveForm(['codEnabled' => false]);
+        $this->postJson('/api/orders', $this->orderPayload(['paymentMethod' => 'reception']))->assertUnprocessable();
     }
 
     public function test_crud_product_and_category_creation(): void
@@ -362,16 +374,17 @@ class ShopTest extends TestCase
         $this->showPublicPrices();
         $this->postJson('/api/coupons/check', ['code' => 'TEST10', 'items' => $this->payload()['items']])->assertOk()->assertJsonPath('discount', 220);
         $this->assertDatabaseHas('Coupon', ['usedCount' => 0]);
-        $this->postJson('/api/orders', [...$this->payload(), 'paymentMethod' => 'virement', 'coupon' => 'TEST10'])->assertCreated();
+        $this->postJson('/api/orders', $this->orderPayload(['coupon' => 'TEST10']))->assertCreated();
         $this->assertDatabaseHas('Order', ['total' => 1980, 'couponDiscount' => 220]);
-        $this->postJson('/api/orders', [...$this->payload(), 'paymentMethod' => 'virement', 'coupon' => 'TEST10'])->assertUnprocessable();
+        $this->postJson('/api/orders', $this->orderPayload(['coupon' => 'TEST10']))->assertUnprocessable();
         $this->assertDatabaseCount('Order', 1);
     }
 
     public function test_shipping_fee_exceptions_are_used_for_orders_and_quote_options(): void
     {
         FeeRule::create(['scope' => 'product', 'target' => 'CF-EI60-90', 'citySlug' => 'casablanca', 'mode' => 'fixed', 'fee' => 120, 'active' => true]);
-        $this->postJson('/api/orders', [...$this->payload(), 'pickup' => false, 'deliveryMode' => 'casablanca', 'address' => 'Adresse de test locale', 'paymentMethod' => 'virement'])->assertCreated();
+        $this->showPublicPrices();
+        $this->postJson('/api/orders', $this->orderPayload(['pickup' => false, 'deliveryMode' => 'casablanca', 'address' => 'Adresse de test locale']))->assertCreated();
         $this->assertDatabaseHas('Order', ['deliveryFee' => 120, 'total' => 2320]);
         $this->postJson('/api/quotes', [...$this->payload(), 'pickup' => false])->assertCreated();
         $q = Quote::first();
@@ -395,7 +408,8 @@ class ShopTest extends TestCase
     public function test_analytics_queries_render_real_demand_data_without_counting_pending_as_sales(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'admin']));
-        $this->postJson('/api/orders', $this->payload())->assertCreated();
+        $this->showPublicPrices();
+        $this->postJson('/api/orders', $this->orderPayload())->assertCreated();
         $this->get('/admin/analytics')->assertOk()->assertSee('preuve d');
         $this->assertEquals(0, AnalyticsQueries::daily()->first()->sales);
         foreach ([DailySales::class, CitySales::class, ProductSales::class, Funnel::class, TrafficSources::class] as $widget) {
