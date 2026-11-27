@@ -27,7 +27,7 @@ Turn faw.ma (B2B aluminium, fire doors, automation — Casablanca, Morocco) from
 | 3 | Hybrid e-commerce (price mode, cart, checkout, payments, quote request); CMS-driven home/menus; responsive; caching + revalidation | ✅ done | `e05bf6a` |
 | 4 | FR/AR i18n with RTL; translatable content in Filament | ✅ done | `7cd8ab3` |
 | 5 | Local SEO Casablanca/Morocco; Google Tag Manager; Meta Pixel | ✅ done | `8674893` |
-| 6 | Claude-powered AI helper in Filament (products, blog posts) | ⏳ in progress | — |
+| 6 | Claude-powered AI helper in Filament (products, blog posts) | ✅ done | `b75ac03` |
 
 Update this table (status + commit hash) at the end of every phase.
 
