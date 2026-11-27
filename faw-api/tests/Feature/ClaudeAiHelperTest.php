@@ -119,4 +119,57 @@ class ClaudeAiHelperTest extends TestCase
             'title' => 'Porte coupe-feu EI60',
         ]);
     }
+
+    public function test_claude_service_skips_thinking_blocks_and_sends_current_request_shape(): void
+    {
+        config(['services.anthropic.key' => 'sk-ant-test-key-12345']);
+
+        Http::fake([
+            'https://api.anthropic.com/v1/messages' => Http::response([
+                'model' => ClaudeService::MODEL,
+                'stop_reason' => 'end_turn',
+                'content' => [
+                    ['type' => 'thinking', 'thinking' => '', 'signature' => 'sig'],
+                    ['type' => 'text', 'text' => json_encode(['excerpt' => 'Chapeau', 'bodyHtml' => '<p>Corps</p>'])],
+                ],
+            ], 200),
+        ]);
+
+        $result = ClaudeService::generateBlogPost(['title' => 'Test']);
+
+        $this->assertSame('Chapeau', $result['excerpt']);
+        Http::assertSent(function ($request) {
+            $body = $request->data();
+
+            return $body['model'] === 'claude-opus-5-5'
+                && $body['max_tokens'] >= 16000
+                && $body['output_config']['format']['type'] === 'json_schema'
+                && $body['output_config']['format']['schema']['additionalProperties'] === false
+                && in_array('bodyHtml_ar', $body['output_config']['format']['schema']['required'], true)
+                && $body['fallbacks'] === 'default'
+                && $request->hasHeader('anthropic-beta', 'server-side-fallback-2026-07-01');
+        });
+    }
+
+    public function test_claude_service_reports_refusal_and_truncation(): void
+    {
+        config(['services.anthropic.key' => 'sk-ant-test-key-12345']);
+
+        Http::fake([
+            'https://api.anthropic.com/v1/messages' => Http::sequence()
+                ->push(['stop_reason' => 'refusal', 'stop_details' => ['type' => 'refusal', 'category' => null], 'content' => []], 200)
+                ->push(['stop_reason' => 'max_tokens', 'content' => [['type' => 'text', 'text' => '{"excerpt": "coup']]], 200),
+        ]);
+
+        try {
+            ClaudeService::generateBlogPost(['title' => 'Test']);
+            $this->fail('Refusal should throw');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('refusé', $e->getMessage());
+        }
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('tronquée');
+        ClaudeService::generateBlogPost(['title' => 'Test']);
+    }
 }

@@ -11,8 +11,8 @@ use RuntimeException;
 
 class ClaudeService
 {
-    /** Model identifier from Anthropic Claude 3.5 Sonnet */
-    public const MODEL = 'claude-3-5-sonnet-20241022';
+    /** Claude Opus 5.5 (thinking is always on; effort controls depth). */
+    public const MODEL = 'claude-opus-5-5';
 
     public static function apiKey(): ?string
     {
@@ -40,9 +40,11 @@ class ClaudeService
     }
 
     /**
-     * Send prompt to Claude API.
+     * Send prompt to Claude API. With $schema, the reply is constrained to valid JSON matching it.
+     *
+     * @param  array<string, mixed>|null  $schema  JSON Schema (objects need additionalProperties=false + required)
      */
-    public static function complete(string $system, string $userPrompt): string
+    public static function complete(string $system, string $userPrompt, ?array $schema = null): string
     {
         $apiKey = self::apiKey();
         if (! $apiKey) {
@@ -54,13 +56,26 @@ class ClaudeService
             throw new RuntimeException('Limite de requêtes atteinte. Veuillez patienter une minute avant de réessayer.');
         }
 
+        // A long generation can exceed PHP's default 30 s execution limit.
+        @set_time_limit(200);
+
+        $outputConfig = ['effort' => 'medium'];
+        if ($schema !== null) {
+            $outputConfig['format'] = ['type' => 'json_schema', 'schema' => $schema];
+        }
+
         $response = Http::withHeaders([
             'x-api-key' => $apiKey,
             'anthropic-version' => '2023-06-01',
+            // Server-side fallback: if a safety classifier declines, the API retries on a suitable model.
+            'anthropic-beta' => 'server-side-fallback-2026-07-01',
             'content-type' => 'application/json',
-        ])->timeout(30)->post('https://api.anthropic.com/v1/messages', [
+        ])->timeout(180)->post('https://api.anthropic.com/v1/messages', [
             'model' => self::MODEL,
-            'max_tokens' => 2000,
+            // Long FR + AR content: a low cap would cut the JSON mid-way.
+            'max_tokens' => 16000,
+            'output_config' => $outputConfig,
+            'fallbacks' => 'default',
             'system' => $system,
             'messages' => [
                 ['role' => 'user', 'content' => $userPrompt],
@@ -72,6 +87,15 @@ class ClaudeService
             throw new RuntimeException('Erreur de communication avec l’API Claude : ' . ($response->json('error.message') ?? $response->body()));
         }
 
+        $stopReason = $response->json('stop_reason');
+        if ($stopReason === 'refusal') {
+            Log::warning('Claude API refusal', ['details' => $response->json('stop_details')]);
+            throw new RuntimeException('L’IA a refusé de générer ce contenu. Reformulez les notes et réessayez.');
+        }
+        if ($stopReason === 'max_tokens') {
+            throw new RuntimeException('La réponse de l’IA a été tronquée. Raccourcissez les notes ou générez en plusieurs fois.');
+        }
+
         // Log audit usage
         if (class_exists(AuditEntry::class) && Auth::check()) {
             AuditEntry::record(
@@ -79,12 +103,30 @@ class ClaudeService
                 entityId: 'anthropic',
                 action: 'generate',
                 user: Auth::user(),
-                changes: ['model' => self::MODEL]
+                changes: ['model' => $response->json('model') ?? self::MODEL]
             );
         }
 
-        $content = $response->json('content.0.text') ?? '';
-        return trim($content);
+        // Thinking blocks come first; take the text blocks only.
+        $text = collect($response->json('content') ?? [])
+            ->filter(fn ($block) => is_array($block) && ($block['type'] ?? null) === 'text')
+            ->pluck('text')
+            ->implode('');
+
+        return trim($text);
+    }
+
+    /** JSON Schema for an object whose listed properties are all required strings. */
+    private static function stringObjectSchema(array $keys, array $extra = []): array
+    {
+        $properties = array_fill_keys($keys, ['type' => 'string']) + $extra;
+
+        return [
+            'type' => 'object',
+            'properties' => $properties,
+            'required' => array_keys($properties),
+            'additionalProperties' => false,
+        ];
     }
 
     /**
@@ -120,7 +162,11 @@ PROMPT;
             . "Catégorie: " . ($input['category'] ?? '') . "\n"
             . "Notes et spécifications techniques: " . ($input['notes'] ?? 'Produit standard de haute qualité FAW.');
 
-        $text = self::complete($system, $userPrompt);
+        $schema = self::stringObjectSchema(
+            ['shortDescription', 'description', 'seoTitle', 'seoDescription', 'title_ar', 'shortDescription_ar', 'description_ar', 'seoTitle_ar', 'seoDescription_ar'],
+            ['faq' => ['type' => 'array', 'items' => self::stringObjectSchema(['q', 'a'])]],
+        );
+        $text = self::complete($system, $userPrompt, $schema);
         $json = self::extractJson($text);
 
         return [
@@ -165,7 +211,10 @@ PROMPT;
         $userPrompt = "Titre de l'article: " . ($input['title'] ?? '') . "\n"
             . "Plan ou notes de cadrage: " . ($input['outline'] ?? 'Normes, conseils et bonnes pratiques pour les professionnels au Maroc.');
 
-        $text = self::complete($system, $userPrompt);
+        $schema = self::stringObjectSchema(
+            ['excerpt', 'bodyHtml', 'seoTitle', 'seoDescription', 'title_ar', 'excerpt_ar', 'bodyHtml_ar', 'seoTitle_ar', 'seoDescription_ar'],
+        );
+        $text = self::complete($system, $userPrompt, $schema);
         $json = self::extractJson($text);
 
         return [

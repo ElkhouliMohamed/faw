@@ -56,6 +56,7 @@ On plain Windows ~34 faw-api tests fail for Windows-only reasons (`/tmp` paths, 
 
 ```bash
 docker build -t faw-api-test:local docker/php-test        # once
+# Git Bash on Windows: prefix with MSYS_NO_PATHCONV=1 and use "$(pwd -W)" instead of "$(pwd)"
 docker run --rm --network faw_default \
   -v "$(pwd)/faw-api:/app" --tmpfs /app/bootstrap/cache:mode=1777 -w /app \
   -e DB_HOST=postgres -e DB_PORT=5432 -e DB_DATABASE=faw_test \
