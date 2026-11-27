@@ -79,6 +79,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     blogPosts(undefined, undefined, 1),
     nonce(),
   ]);
+  const rawGtm = config?.integrations.gtmId || runtimeEnv("NEXT_PUBLIC_GTM_ID") || runtimeEnv("GTM_ID");
+  const gtmId = (config?.integrations.gtmEnabled ?? true) && rawGtm && /^GTM-[A-Z0-9]{4,15}$/.test(rawGtm) ? rawGtm : undefined;
   const rawPixel = config?.integrations.pixelId || runtimeEnv("NEXT_PUBLIC_META_PIXEL_ID") || runtimeEnv("META_PIXEL_ID");
   const pixelId = (config?.integrations.pixelEnabled ?? true) && rawPixel && /^\d{5,20}$/.test(rawPixel) ? rawPixel : undefined;
   const rawGa = config?.integrations.gaId || runtimeEnv("NEXT_PUBLIC_GA_ID");
@@ -112,7 +114,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Providers defaultTheme={config?.theme.mode || "light"} locale={locale} catalog={catalog} shop={shop} formToken={issueFormToken()} nonce={n}>
           <AttributionCapture />
           <PageTracker />
-          <ConsentedTracking gaId={gaId} pixelId={pixelId} adsId={config?.integrations.adsEnabled ? config.integrations.adsId || undefined:undefined} adsLabel={config?.integrations.adsLabel || undefined} />
+          <ConsentedTracking gtmId={gtmId} gaId={gaId} pixelId={pixelId} adsId={config?.integrations.adsEnabled ? config.integrations.adsId || undefined:undefined} adsLabel={config?.integrations.adsLabel || undefined} />
           <Header
             links={headerLinks}
             contact={{ phone: contact.phone, phoneHref: contact.phoneHref, whatsappHref: waHref(contact), whatsappDisplay: contact.whatsappDisplay, email: contact.email, hours: contact.hours }}

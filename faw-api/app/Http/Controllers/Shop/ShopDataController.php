@@ -132,11 +132,16 @@ class ShopDataController extends Controller
         $l = LandingPage::where('published', true)->where('slug', $slug)->firstOrFail();
         $blocks = is_array($l->blocks) ? $l->blocks : (json_decode((string) $l->blocks, true) ?: []);
         $show = PriceVisibility::showOnSite();
+        $isAr = \App\Support\LocaleHelper::isArabic(request());
+
+        $title = $isAr ? ($l->title_ar ?: $l->title) : $l->title;
+        $seoTitle = $isAr ? ($l->seoTitle_ar ?: $l->seoTitle) : $l->seoTitle;
+        $seoDescription = $isAr ? ($l->seoDescription_ar ?: $l->seoDescription) : $l->seoDescription;
 
         return response()->json([
-            'slug' => (string) $l->slug, 'title' => (string) $l->title,
-            'seoTitle' => $show ? (string) ($l->seoTitle ?? '') : (string) (PriceVisibility::sanitizeText($l->seoTitle) ?? ''),
-            'seoDescription' => $show ? (string) ($l->seoDescription ?? '') : (string) (PriceVisibility::sanitizeText($l->seoDescription) ?? ''),
+            'slug' => (string) $l->slug, 'title' => (string) $title,
+            'seoTitle' => $show ? (string) ($seoTitle ?? '') : (string) (PriceVisibility::sanitizeText($seoTitle) ?? ''),
+            'seoDescription' => $show ? (string) ($seoDescription ?? '') : (string) (PriceVisibility::sanitizeText($seoDescription) ?? ''),
             'blocks' => $show ? $blocks : $this->sanitize($blocks), 'updatedAt' => $l->updatedAt?->toIso8601String(),
         ])->header('Cache-Control', 'no-store');
     }

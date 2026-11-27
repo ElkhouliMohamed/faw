@@ -93,6 +93,16 @@ class LandingPageResource extends OwnerResource
                 ])
                 ->collapsible()
                 ->columnSpanFull(),
+            Section::make('Traduction arabe')
+                ->description('Titre et référencement en arabe pour la version RTL.')
+                ->schema([
+                    TextInput::make('title_ar')->label('Titre en arabe')->maxLength(255)->extraInputAttributes(['dir' => 'rtl'])->columnSpanFull(),
+                    TextInput::make('seoTitle_ar')->label('Titre SEO en arabe')->maxLength(255)->extraInputAttributes(['dir' => 'rtl'])->columnSpanFull(),
+                    Textarea::make('seoDescription_ar')->label('Description SEO en arabe')->maxLength(12000)->extraInputAttributes(['dir' => 'rtl'])->columnSpanFull(),
+                ])
+                ->collapsible()
+                ->collapsed()
+                ->columnSpanFull(),
             static::blocksRepeater(),
         ]);
     }

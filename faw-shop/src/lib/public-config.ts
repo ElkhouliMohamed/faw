@@ -7,7 +7,18 @@ const nullable = z.string().nullable();
 const schema = z.object({
   shop: z.object({ showPrices: z.boolean() }).optional(),
   theme: z.object({ mode: z.enum(["light", "dark"]), accent: z.enum(["copper", "olive", "umber"]) }),
-  integrations: z.object({ pixelEnabled: z.boolean(), pixelId: nullable, gaEnabled: z.boolean(), gaId: nullable, adsEnabled: z.boolean(), adsId: nullable, adsLabel: nullable, gscVerification: nullable }),
+  integrations: z.object({
+    gtmEnabled: z.boolean().optional(),
+    gtmId: nullable.optional(),
+    pixelEnabled: z.boolean(),
+    pixelId: nullable,
+    gaEnabled: z.boolean(),
+    gaId: nullable,
+    adsEnabled: z.boolean(),
+    adsId: nullable,
+    adsLabel: nullable,
+    gscVerification: nullable,
+  }),
   social: z.object({ floatingEnabled: z.boolean(), channel: z.enum(["whatsapp", "instagram", "linkedin"]), whatsappNumber: nullable, instagram: nullable, linkedin: nullable, facebook: nullable }),
   seo: z.object({ titleTemplate: z.string(), description: nullable, ogImage: nullable, canonicalBase: nullable, noindex: z.boolean(), sitemapEnabled: z.boolean() }),
 });

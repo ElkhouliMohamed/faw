@@ -6,7 +6,7 @@ import { allProducts } from "@/lib/catalog"
 import { showPublicPrices } from "@/lib/price-visibility"
 import { stripPriceMentions } from "@/lib/format";
 import { shopLanding } from "@/lib/shop-api";
-import { breadcrumbLd, faqLd, ldJson, nonce } from "@/lib/seo";
+import { alternates, breadcrumbLd, faqLd, ldJson, nonce } from "@/lib/seo";
 
 // Rendu à la demande (le layout lit la langue et le nonce CSP) ; données servies par le cache Next ("landings", "catalog").
 const load = (slug: string) => shopLanding(slug);
@@ -16,7 +16,18 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!l) return {};
   const showPrices = await showPublicPrices();
   const desc = l.seoDescription ? (showPrices ? l.seoDescription : stripPriceMentions(l.seoDescription)) : undefined;
-  return { title: l.seoTitle ? { absolute: showPrices ? l.seoTitle : stripPriceMentions(l.seoTitle) } : l.title, description: desc, alternates: { canonical: `/l/${l.slug}` } };
+  const alt = await alternates(`/l/${l.slug}`);
+  return {
+    title: l.seoTitle ? { absolute: showPrices ? l.seoTitle : stripPriceMentions(l.seoTitle) } : l.title,
+    description: desc,
+    alternates: alt,
+    openGraph: {
+      title: l.seoTitle || l.title,
+      description: desc,
+      url: alt.canonical,
+      type: "website",
+    },
+  };
 }
 
 export default async function LandingPage({ params }: { params: Promise<{ slug: string }> }) {

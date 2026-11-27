@@ -41,7 +41,11 @@ export function CheckoutForm() {
     void fetch("/api/cart", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cartId, items: lines, name: fd.get("customerName"), phone: fd.get("phone"), email: fd.get("email") }), keepalive: true }).catch(() => {});
   };
   useEffect(() => {
-    if (ready && rows.length) track("checkout");
+    if (ready && rows.length) {
+      track("checkout");
+      const subtotal = rows.reduce((s, r) => s + r.lineTotal, 0);
+      window.dispatchEvent(new CustomEvent("faw:begin-checkout", { detail: { value: subtotal, quantity: rows.reduce((s, r) => s + r.qty, 0) } }));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
   const [state, action, pending] = useActionState<OrderFormState, FormData>(createOrder, null);

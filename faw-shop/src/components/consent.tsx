@@ -43,6 +43,23 @@ export function ConsentBanner() {
   );
 }
 
+/** GTM injecté par JS (compatible CSP nonce), uniquement après consentement. */
+function GoogleTagManager({ gtmId }: { gtmId?: string }) {
+  useEffect(() => {
+    if (!gtmId) return;
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({ "gtm.start": new Date().getTime(), event: "gtm.js" });
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtm.js?id=${encodeURIComponent(gtmId)}`;
+    document.head.appendChild(script);
+    return () => {
+      script.remove();
+    };
+  }, [gtmId]);
+  return null;
+}
+
 /** GA4 injecté par JS (compatible CSP nonce + strict-dynamic), uniquement après consentement. */
 function GoogleAnalytics({ id,adsId,adsLabel }: { id?:string;adsId?:string;adsLabel?:string }) {
   const path=usePathname();
@@ -61,26 +78,68 @@ function GoogleAnalytics({ id,adsId,adsLabel }: { id?:string;adsId?:string;adsLa
   useEffect(()=>{if(id)window.gtag?.("event","page_view",{page_path:path,page_location:window.location.origin+path});},[path,id]);
   useEffect(()=>{
     const onAdd=(event:Event)=>{
-      if(!id)return;
       const d=((event as CustomEvent<{id?:string;name?:string;value?:number;quantity?:number;price?:number}>).detail)??{};
-      const priced=d.value!=null;window.gtag?.("event","add_to_cart",{items:[{item_id:d.id,item_name:d.name,quantity:d.quantity,...(priced?{price:d.price}:{}) }],...(priced?{currency:"MAD",value:d.value}:{})});
+      const priced=d.value!=null;
+      const payload={
+        event: "add_to_cart",
+        items:[{item_id:d.id,item_name:d.name,quantity:d.quantity,...(priced?{price:d.price}:{}) }],
+        ...(priced?{currency:"MAD",value:d.value}:{}),
+      };
+      if(id)window.gtag?.("event","add_to_cart",payload);
+      window.dataLayer=window.dataLayer||[];
+      window.dataLayer.push(payload);
     };
     const onLead=(event:Event)=>{
       const d=((event as CustomEvent<{value?:number}>).detail)??{};
+      const payload={
+        event: "generate_lead",
+        ...(d.value!=null?{currency:"MAD",value:d.value}:{}),
+      };
       if(id)window.gtag?.("event","generate_lead",d.value!=null?{currency:"MAD",value:d.value}:{});
       if(adsId&&adsLabel)window.gtag?.("event","conversion",{send_to:`${adsId}/${adsLabel}`,page_location:window.location.origin+window.location.pathname});
+      window.dataLayer=window.dataLayer||[];
+      window.dataLayer.push(payload);
+    };
+    const onBeginCheckout=(event:Event)=>{
+      const d=((event as CustomEvent<{value?:number;quantity?:number}>).detail)??{};
+      const payload={
+        event: "begin_checkout",
+        ...(d.value!=null?{currency:"MAD",value:d.value}:{}),
+      };
+      if(id)window.gtag?.("event","begin_checkout",payload);
+      window.dataLayer=window.dataLayer||[];
+      window.dataLayer.push(payload);
+    };
+    const onPurchase=(event:Event)=>{
+      const d=((event as CustomEvent<{value?:number;id?:string}>).detail)??{};
+      const payload={
+        event: "purchase",
+        ...(d.id?{transaction_id:d.id}:{}),
+        ...(d.value!=null?{currency:"MAD",value:d.value}:{}),
+      };
+      if(id)window.gtag?.("event","purchase",payload);
+      window.dataLayer=window.dataLayer||[];
+      window.dataLayer.push(payload);
     };
     window.addEventListener("faw:add-to-cart",onAdd);
     window.addEventListener("faw:lead-recorded",onLead);
-    return()=>{window.removeEventListener("faw:add-to-cart",onAdd);window.removeEventListener("faw:lead-recorded",onLead);};
+    window.addEventListener("faw:begin-checkout",onBeginCheckout);
+    window.addEventListener("faw:purchase",onPurchase);
+    return()=>{
+      window.removeEventListener("faw:add-to-cart",onAdd);
+      window.removeEventListener("faw:lead-recorded",onLead);
+      window.removeEventListener("faw:begin-checkout",onBeginCheckout);
+      window.removeEventListener("faw:purchase",onPurchase);
+    };
   },[id,adsId,adsLabel]);
   return null;
 }
+
 /** Traceurs uniquement après consentement ; jamais sur les liens privés ni les confirmations. */
-export function ConsentedTracking({gaId,pixelId,adsId,adsLabel}:{gaId?:string;pixelId?:string;adsId?:string;adsLabel?:string}){
+export function ConsentedTracking({gtmId,gaId,pixelId,adsId,adsLabel}:{gtmId?:string;gaId?:string;pixelId?:string;adsId?:string;adsLabel?:string}){
  const {consent}=useConsent();const path=usePathname();
  if(consent!=="granted"||/^\/(?:admin|devis\/(?:suivi|confirmation)|commande\/confirmation)(?:\/|$)/.test(path))return null;
- return <><GoogleAnalytics id={gaId} adsId={adsId} adsLabel={adsLabel}/><MetaPixel pixelId={pixelId}/></>;
+ return <><GoogleTagManager gtmId={gtmId}/><GoogleAnalytics id={gaId} adsId={adsId} adsLabel={adsLabel}/><MetaPixel pixelId={pixelId}/></>;
 }
 
 /** Lien « Gérer les cookies » (pied de page). */

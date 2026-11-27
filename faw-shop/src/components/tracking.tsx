@@ -72,14 +72,18 @@ export function fbTrack(event: string, params?: Record<string, unknown>) {
 }
 
 export function gaEvent(event: string, params?: Record<string, unknown>) {
-  if (typeof window !== "undefined" && typeof window.gtag === "function") {
-    window.gtag("event", event, params);
+  if (typeof window !== "undefined") {
+    if (typeof window.gtag === "function") {
+      window.gtag("event", event, params);
+    }
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({ event, ...params });
   }
 }
 
 export type CommerceItem = { id: string; name?: string; value?: number; quantity?: number; price?: number };
 
-export function onCommerceEvent(name: "faw:add-to-cart" | "faw:lead-recorded", handler: (detail: CommerceItem) => void) {
+export function onCommerceEvent(name: "faw:add-to-cart" | "faw:lead-recorded" | "faw:begin-checkout" | "faw:purchase", handler: (detail: CommerceItem) => void) {
   const listener = (event: Event) => handler(((event as CustomEvent<CommerceItem>).detail) ?? {});
   window.addEventListener(name, listener);
   return () => window.removeEventListener(name, listener);
@@ -133,7 +137,19 @@ export function MetaPixel({ pixelId }: { pixelId?: string }) {
     const stopLead = onCommerceEvent("faw:lead-recorded", (d) => {
       fbTrack("Lead", d.value != null ? { value: d.value, currency: "MAD", content_name: "Demande de devis" } : { content_name: "Demande de devis" });
     });
-    return () => { stopAdd(); stopLead(); };
+    const stopCheckout = onCommerceEvent("faw:begin-checkout", (d) => {
+      fbTrack("InitiateCheckout", {
+        ...(d.value != null ? { value: d.value, currency: "MAD" } : {}),
+        ...(d.quantity != null ? { num_items: d.quantity } : {}),
+      });
+    });
+    const stopPurchase = onCommerceEvent("faw:purchase", (d) => {
+      fbTrack("Purchase", {
+        ...(d.value != null ? { value: d.value, currency: "MAD" } : {}),
+        content_type: "product",
+      });
+    });
+    return () => { stopAdd(); stopLead(); stopCheckout(); stopPurchase(); };
   }, [pixelId]);
 
   useEffect(() => {

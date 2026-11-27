@@ -169,7 +169,22 @@ export default async function ProductPage({ params }: Props) {
     image: imgs.filter((i) => !i.illustration).map((i) => `${SITE.url}${i.src}`).concat(p.image ? [] : [`${SITE.url}/og.jpg`]),
     brand: { "@type": "Brand", name: p.brand },
     url,
-    // la fiche technique / catalogue PDF reste un téléchargement optionnel : pas de JSON-LD
+    ...(show && p.price != null && p.price > 0
+      ? {
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "MAD",
+            price: p.price,
+            itemCondition: "https://schema.org/NewCondition",
+            availability: orderable ? "https://schema.org/InStock" : "https://schema.org/PreOrder",
+            seller: {
+              "@type": "Organization",
+              name: SITE.name,
+            },
+            url,
+          },
+        }
+      : {}),
     ...(guide
       ? {
           subjectOf: [
@@ -177,7 +192,6 @@ export default async function ProductPage({ params }: Props) {
           ],
         }
       : {}),
-    // Jamais d'Offer ni de prix dans le JSON-LD (règle FAW).
   };
   const crumbs = breadcrumbLd([
     { name: "Accueil", path: "/" },

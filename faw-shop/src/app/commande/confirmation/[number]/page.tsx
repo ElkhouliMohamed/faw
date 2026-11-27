@@ -37,7 +37,7 @@ export default async function Confirmation({ params, searchParams }: { params: P
   return (
     <div className="mx-auto max-w-3xl px-4 pt-12 sm:px-6 sm:pt-16">
       <div className="mb-8"><Steps current={2} /></div>
-      {nouveau && <ClearCart />}
+      {nouveau && <ClearCart orderNumber={order.number} total={order.total} />}
       <div className="rounded-lg bg-sand p-6 sm:p-10" data-testid="confirmation">
         <CheckCircle2 className="size-10 text-[#3d6b3a] dark:text-[#9cc497]" strokeWidth={1.5} />
         <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">{t.confirm.title}</h1>

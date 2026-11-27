@@ -77,8 +77,8 @@ export function organizationLd(showPrices = false) {
     telephone: SITE.phone,
     email: SITE.email,
     ...(showPrices ? { priceRange: "DH", currenciesAccepted: "MAD" } : {}),
-    paymentAccepted: "Virement bancaire, chèque",
-    address: { "@type": "PostalAddress", streetAddress: "21 Rue Al Yazidi Mohamed", addressLocality: "Casablanca", addressCountry: "MA" },
+    paymentAccepted: "Virement bancaire, chèque, carte bancaire, espèces",
+    address: { "@type": "PostalAddress", streetAddress: "21 Rue Al Yazidi Mohamed", addressLocality: "Casablanca", postalCode: "20250", addressRegion: "Grand Casablanca", addressCountry: "MA" },
     geo: { "@type": "GeoCoordinates", latitude: SITE.geo.lat, longitude: SITE.geo.lng },
     openingHoursSpecification: [
       { "@type": "OpeningHoursSpecification", dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], opens: "09:00", closes: "17:00" },
@@ -86,6 +86,85 @@ export function organizationLd(showPrices = false) {
     ],
     contactPoint: [{ "@type": "ContactPoint", telephone: `+${SITE.whatsappNumber}`, contactType: "customer service", availableLanguage: ["French", "Arabic"] }],
     ...(sameAs.length ? { sameAs } : {}),
+  };
+}
+
+export type ProductLdInput = {
+  id: string;
+  title: string;
+  description?: string;
+  image?: string;
+  price?: number;
+  available?: boolean;
+  slug: string;
+  category?: string;
+  showPrices?: boolean;
+};
+
+/** Product + Offer JSON-LD schema (Offer included only when product has a price and prices are visible). */
+export function productLd(p: ProductLdInput) {
+  const hasPrice = p.showPrices && p.price != null && p.price > 0;
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "@id": `${SITE.url}/produits/${p.slug}#product`,
+    name: p.title,
+    sku: p.id,
+    description: p.description || undefined,
+    image: p.image ? (p.image.startsWith("http") ? p.image : `${SITE.url}${p.image}`) : undefined,
+    category: p.category || undefined,
+    brand: {
+      "@type": "Brand",
+      name: "FAW",
+    },
+    ...(hasPrice ? {
+      offers: {
+        "@type": "Offer",
+        priceCurrency: "MAD",
+        price: p.price,
+        itemCondition: "https://schema.org/NewCondition",
+        availability: p.available !== false ? "https://schema.org/InStock" : "https://schema.org/PreOrder",
+        seller: {
+          "@type": "Organization",
+          name: SITE.name,
+        },
+        url: `${SITE.url}/produits/${p.slug}`,
+      },
+    } : {}),
+  };
+}
+
+/** Article JSON-LD schema for blog / content posts. */
+export function articleLd(article: {
+  title: string;
+  description?: string;
+  slug: string;
+  image?: string;
+  publishedAt?: string;
+  updatedAt?: string;
+  authorName?: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: article.title,
+    description: article.description || undefined,
+    url: `${SITE.url}/blog/${article.slug}`,
+    image: article.image ? (article.image.startsWith("http") ? article.image : `${SITE.url}${article.image}`) : undefined,
+    datePublished: article.publishedAt || undefined,
+    dateModified: article.updatedAt || undefined,
+    author: {
+      "@type": "Organization",
+      name: article.authorName || SITE.name,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: SITE.name,
+      logo: {
+        "@type": "ImageObject",
+        url: `${SITE.url}/icon.png`,
+      },
+    },
   };
 }
 

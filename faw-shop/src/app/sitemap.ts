@@ -40,9 +40,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const cats = (await categoryTree()).map((c) => entry(c.path, c.parentId == null ? 0.9 : 0.85));
   const products = (await allProducts()).map((p) => entry(`/produits/${p.slug}`, 0.8, p.updatedAt));
   const extra = [entry("/packs", 0.6)];
-  const landings = (await shopLandings()).map((l) => ({
-    url: `${origin}/l/${l.slug}`, changeFrequency: "weekly" as const, priority: 0.6, ...(l.updatedAt ? { lastModified: new Date(l.updatedAt) } : {}),
-  }));
+  const landings = (await shopLandings()).map((l) => entry(`/l/${l.slug}`, 0.6, l.updatedAt ? new Date(l.updatedAt) : undefined));
   const links=await contentLinks();
   const content=links.map(c=>entry(`/${c.kind==="page"?"pages":c.kind==="technology"?"technologies":"blog"}/${c.slug}`,0.5,new Date(c.updated_at)));
   return [...content,...pages, ...extra, ...cats, ...products, ...landings];
