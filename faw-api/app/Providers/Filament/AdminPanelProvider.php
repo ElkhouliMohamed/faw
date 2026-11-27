@@ -2,18 +2,17 @@
 
 namespace App\Providers\Filament;
 
-use Filament\Http\Middleware\Authenticate;
 use App\Filament\Pages\Auth\EditProfile;
+use App\Filament\Pages\Dashboard;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
+use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\View\PanelsRenderHook;
-use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -29,14 +28,25 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->brandName('FAW · Back-office')
-            ->navigationGroups(['Aperçu', 'Ventes', 'Catalogue', 'Marketing & SEO', 'Contenu', 'Communication', 'Système', 'Paramètres'])
+            ->brandName('FAW Aluminium')
+            // Sidebar order. Groups without any visible page are simply not shown; the legacy names
+            // ("Marketing & SEO", "Communication") stay listed so they keep their place while resources move.
+            ->navigationGroups(['Ventes', 'Catalogue', 'Contenu', 'Clients', 'Marketing', 'Marketing & SEO', 'Communication', 'Paramètres', 'Système'])
+            ->sidebarCollapsibleOnDesktop()
+            // SPA navigation (wire:navigate). Downloads and private files served outside Filament are excluded.
+            ->spa()
+            ->spaUrlExceptions([
+                '*/admin/quotes/*/pdf',
+                '*/admin/quotes/*/versions/*/pdf',
+                '*/admin/payments/*/proof',
+                '*/admin/attachments/*',
+            ])
             ->login()
             // « Mon profil » : changement de son propre mot de passe + double authentification FACULTATIVE (TOTP + codes de secours).
             ->profile(EditProfile::class, isSimple: false)
-            ->multiFactorAuthentication([AppAuthentication::make()->recoverable()->brandName('FAW Back-office')], isRequired: false)
+            ->multiFactorAuthentication([AppAuthentication::make()->recoverable()->brandName('FAW Aluminium')], isRequired: false)
             ->colors([
-                // v6 : orange du logo FAW (#F38F26), neutres chauds
+                // Orange du logo FAW (#F38F26), neutres chauds
                 'primary' => Color::hex('#f38f26'),
                 'gray' => Color::Stone,
             ])
@@ -51,11 +61,8 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
             ])
+            // Widgets are placed explicitly by App\Filament\Pages\Dashboard and Analytics (none is auto-discovered).
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
-            ->widgets([
-                AccountWidget::class,
-
-            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

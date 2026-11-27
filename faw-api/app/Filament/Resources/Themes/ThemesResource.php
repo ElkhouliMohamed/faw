@@ -20,6 +20,9 @@ class ThemesResource extends SystemConfigResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageThemes::route('/')];
+        return [
+            'index' => Pages\EditThemes::route('/'),
+            'edit' => Pages\EditThemes::route('/{record}/edit'),
+        ];
     }
 }

@@ -2,7 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\CustomerOrders\Pages\ManageCustomerOrders;
+use App\Filament\Resources\CustomerOrders\Pages\ListCustomerOrders;
+use App\Filament\Resources\CustomerOrders\Pages\ViewCustomerOrder;
 use App\Models\CustomerOrder;
 use App\Models\Payment;
 use App\Models\PaymentTransaction;
@@ -171,23 +172,23 @@ class PaymentTest extends TestCase
 
         foreach (['finance_manager' => [true, true], 'super_admin' => [true, true], 'sales_manager' => [true, false], 'stock_manager' => [false, false], 'viewer' => [false, false]] as $r => [$schedule, $validate]) {
             $this->actingAs($this->role($r));
-            $lw = Livewire::test(ManageCustomerOrders::class);
+            $lw = Livewire::test(ListCustomerOrders::class);
             $schedule ? $lw->assertActionVisible(TestAction::make('echeancier')->table($o)) : $lw->assertActionHidden(TestAction::make('echeancier')->table($o));
             $validate ? $lw->assertActionVisible(TestAction::make('validerPaiement')->table($o)) : $lw->assertActionHidden(TestAction::make('validerPaiement')->table($o));
             $validate ? $lw->assertActionVisible(TestAction::make('rejeterJustificatif')->table($o)) : $lw->assertActionHidden(TestAction::make('rejeterJustificatif')->table($o));
         }
         $this->actingAs($this->role('finance_manager'));
-        Livewire::test(ManageCustomerOrders::class)->callAction(TestAction::make('validerPaiement')->table($o), data: ['payment' => $p->id, 'note' => 'Reçu le 11/11'])->assertHasNoActionErrors();
+        Livewire::test(ListCustomerOrders::class)->callAction(TestAction::make('validerPaiement')->table($o), data: ['payment' => $p->id, 'note' => 'Reçu le 11/11'])->assertHasNoActionErrors();
         $this->assertSame(PaymentStatus::Confirmed, $p->fresh()->status);
         $this->assertSame(OrderStatus::PaymentConfirmed, $o->fresh()->status);
-        Livewire::test(ManageCustomerOrders::class)->mountAction(TestAction::make('view')->table($o))->assertMountedActionModalSee(['Paiements', $p->reference, 'Paiement par carte : désactivé']);
+        Livewire::test(ViewCustomerOrder::class, ['record' => $o->getKey()])->assertSee(['Paiements', $p->reference, 'Paiement par carte : désactivé']);
 
         // Deposit schedule from the form on a fresh order.
         $q2 = $this->validatedQuote(1, true); // 2200
         $this->acceptCurrent($q2, $this->rawToken)->assertOk();
         $o2 = CustomerOrder::where('quote_id', $q2->id)->sole();
         $this->actingAs($this->role('sales_manager'));
-        Livewire::test(ManageCustomerOrders::class)->callAction(TestAction::make('echeancier')->table($o2), data: ['mode' => 'acompte', 'deposit' => 700])->assertHasNoActionErrors();
+        Livewire::test(ListCustomerOrders::class)->callAction(TestAction::make('echeancier')->table($o2), data: ['mode' => 'acompte', 'deposit' => 700])->assertHasNoActionErrors();
         $this->assertSame([700, 1500], collect(app(PaymentService::class)->schedule($o2))->pluck('amount')->all());
     }
 

@@ -61,11 +61,10 @@ class ProductContentTest extends TestCase
         $this->actingAs(\App\Models\User::factory()->create(['role' => 'admin']));
         $door = $this->door();
         $door->update(['datasheet' => '/storage/fiches-techniques/f.pdf', 'maintenanceGuide' => '/storage/guides-pose-entretien/faw-portes-coupe-feu-guide-pose-entretien.pdf']);
-        \Livewire\Livewire::test(\App\Filament\Resources\Products\Pages\ManageProducts::class)
-            ->mountAction(\Filament\Actions\Testing\TestAction::make('edit')->table($door))
-            ->assertFormFieldExists('datasheetUpload', 'mountedActionSchema0', fn ($f) => $f->getLabel() === 'Fiche technique (PDF)')
-            ->assertFormFieldExists('maintenanceGuideUpload', 'mountedActionSchema0', fn ($f) => $f->getLabel() === 'Guide de pose & entretien (PDF)')
-            ->assertFormFieldExists('maintenanceGuide', 'mountedActionSchema0', fn ($f) => $f->getLabel() === 'Guide de pose & entretien actuel')
-            ->assertActionDataSet(['datasheet' => '/storage/fiches-techniques/f.pdf', 'maintenanceGuide' => '/storage/guides-pose-entretien/faw-portes-coupe-feu-guide-pose-entretien.pdf']);
+        \Livewire\Livewire::test(\App\Filament\Resources\Products\Pages\EditProduct::class, ['record' => $door->getKey()])
+            ->assertFormFieldExists('datasheetUpload', fn ($f) => $f->getLabel() === 'Fiche technique (PDF)')
+            ->assertFormFieldExists('maintenanceGuideUpload', fn ($f) => $f->getLabel() === 'Guide de pose & entretien (PDF)')
+            ->assertFormFieldExists('maintenanceGuide', fn ($f) => $f->getLabel() === 'Guide de pose & entretien actuel')
+            ->assertFormSet(['datasheet' => '/storage/fiches-techniques/f.pdf', 'maintenanceGuide' => '/storage/guides-pose-entretien/faw-portes-coupe-feu-guide-pose-entretien.pdf']);
     }
 }

@@ -8,7 +8,7 @@ class TicketsResource extends InboxResource
 {
     protected static ?string $navigationLabel = 'Tickets support';
 
-    protected static ?string $modelLabel = 'Tickets support';
+    protected static ?string $modelLabel = 'ticket support';
 
     protected static ?string $pluralModelLabel = 'Tickets support';
 
@@ -16,6 +16,11 @@ class TicketsResource extends InboxResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageTickets::route('/')];
+        return [
+            'index' => Pages\ListTickets::route('/'),
+            'create' => Pages\CreateTicket::route('/create'),
+            'view' => Pages\ViewTicket::route('/{record}'),
+            'edit' => Pages\EditTicket::route('/{record}/edit'),
+        ];
     }
 }

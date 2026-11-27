@@ -20,6 +20,9 @@ class SeoSettingsResource extends SystemConfigResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageSeoSettings::route('/')];
+        return [
+            'index' => Pages\EditSeoSettings::route('/'),
+            'edit' => Pages\EditSeoSettings::route('/{record}/edit'),
+        ];
     }
 }

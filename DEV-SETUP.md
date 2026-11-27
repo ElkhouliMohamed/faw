@@ -32,6 +32,7 @@ PostgreSQL is published on **5433** so it does not clash with a native PostgreSQ
 cd faw-api
 composer install
 cp .env.example .env            # already points to the Docker services
+# set DB_PASSWORD=faw_dev_password in .env (local Docker only; .env.example leaves it empty on purpose)
 php artisan key:generate
 php artisan migrate --seed
 # set FILAMENT_ADMIN_PASSWORD in .env first, then:

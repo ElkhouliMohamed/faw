@@ -2,12 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\Notifications\Pages\ManageNotifications;
+use App\Filament\Resources\Notifications\Pages\EditNotifications;
 use App\Models\AuditEntry;
 use App\Models\SystemConfig;
 use App\Models\User;
 use App\Services\EmailSettings;
-use Filament\Actions\Testing\TestAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
@@ -23,9 +22,9 @@ class SettingsTest extends TestCase
         $record = SystemConfig::where('name', 'notifications')->first();
         $record->saveForm(['resendKey' => 'synthetic-test-secret', 'emailFrom' => 'test@example.test']);
         $this->assertStringNotContainsString('synthetic-test-secret', DB::table('SystemConfig')->where('id', $record->id)->value('value'));
-        $component = Livewire::test(ManageNotifications::class)->mountAction(TestAction::make('edit')->table($record))->assertDontSee('synthetic-test-secret');
-        $this->assertEmpty($component->get('mountedActions.0.data.fields.resendKey'));
-        $component->fillForm(['fields' => ['enabled' => false, 'transport' => 'resend', 'resendKey' => '', 'emailFrom' => 'new@example.test']])->callMountedAction()->assertHasNoActionErrors();
+        $component = Livewire::test(EditNotifications::class)->assertDontSee('synthetic-test-secret');
+        $this->assertEmpty($component->get('data.fields.resendKey'));
+        $component->fillForm(['fields' => ['enabled' => false, 'transport' => 'resend', 'resendKey' => '', 'emailFrom' => 'new@example.test']])->call('save')->assertHasNoFormErrors();
         $this->assertEquals('synthetic-test-secret', $record->fresh()->value['resendKey']);
         $this->assertFalse(EmailSettings::ready());
         foreach (['themes', 'shopsettings', 'integrations', 'dynamics', 'aramex', 'cmi', 'notifications', 'socials', 'analyticsconnections', 'seosettings'] as $slug) {

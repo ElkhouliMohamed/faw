@@ -20,6 +20,9 @@ class DynamicsResource extends SystemConfigResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageDynamics::route('/')];
+        return [
+            'index' => Pages\EditDynamics::route('/'),
+            'edit' => Pages\EditDynamics::route('/{record}/edit'),
+        ];
     }
 }

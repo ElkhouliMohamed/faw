@@ -2,26 +2,64 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Widgets\Concerns\ChartPalette;
+use App\Filament\Widgets\Concerns\UsesAnalyticsPeriod;
 use App\Services\AnalyticsQueries;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Table;
-use Filament\Widgets\TableWidget;
+use Filament\Widgets\ChartWidget;
 
-class ProductSales extends TableWidget
+/** Most requested products: units requested vs units actually sold. */
+class ProductSales extends ChartWidget
 {
-    protected int|string|array $columnSpan = 'full';
-
-    protected static ?string $heading = 'Par produit — 30 jours';
+    use UsesAnalyticsPeriod;
 
     protected static bool $isDiscovered = false;
 
+    protected static ?int $sort = 5;
+
+    protected ?string $pollingInterval = null;
+
+    protected ?string $maxHeight = '320px';
+
     public static function canView(): bool
     {
-        return auth()->check();
+        return static::canViewAnalytics();
     }
 
-    public function table(Table $table): Table
+    public function getHeading(): string
     {
-        return $table->defaultKeySort(false)->query(AnalyticsQueries::products())->columns([TextColumn::make('productId')->label('Référence'), TextColumn::make('title')->label('Produit')->wrap(), TextColumn::make('quantity')->label('Unités demandées'), TextColumn::make('sales')->label('Ventes confirmées, hors transport')->suffix(' DH TTC')])->paginated([10, 30]);
+        return 'Top produits — '.$this->periodLabel();
+    }
+
+    public function getDescription(): string
+    {
+        return 'Unités demandées (commandes et devis) et unités vendues. Entre parenthèses : chiffre d’affaires hors transport.';
+    }
+
+    protected function getType(): string
+    {
+        return 'bar';
+    }
+
+    protected function getData(): array
+    {
+        $period = $this->period();
+        $rows = AnalyticsQueries::cached('top-products', $period, function () use ($period) {
+            $r = AnalyticsQueries::range($period);
+
+            return AnalyticsQueries::topProducts($r['from'], $r['to']);
+        });
+
+        return [
+            'labels' => array_map(fn (array $p) => mb_strimwidth($p['title'] ?: $p['productId'], 0, 40, '…').($p['sales'] > 0 ? ' ('.static::money($p['sales']).')' : ''), $rows),
+            'datasets' => [
+                ['label' => 'Unités demandées', 'data' => array_column($rows, 'requested'), 'backgroundColor' => ChartPalette::NEUTRAL_SOFT, 'borderColor' => ChartPalette::NEUTRAL, 'borderWidth' => 1],
+                ['label' => 'Unités vendues', 'data' => array_column($rows, 'sold'), 'backgroundColor' => ChartPalette::BRAND, 'borderColor' => ChartPalette::BRAND],
+            ],
+        ];
+    }
+
+    protected function getOptions(): array
+    {
+        return ['indexAxis' => 'y', 'plugins' => ['legend' => ['position' => 'bottom']], 'scales' => ['x' => ['beginAtZero' => true, 'ticks' => ['precision' => 0]]]];
     }
 }

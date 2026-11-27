@@ -20,6 +20,9 @@ class AramexResource extends SystemConfigResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageAramex::route('/')];
+        return [
+            'index' => Pages\EditAramex::route('/'),
+            'edit' => Pages\EditAramex::route('/{record}/edit'),
+        ];
     }
 }

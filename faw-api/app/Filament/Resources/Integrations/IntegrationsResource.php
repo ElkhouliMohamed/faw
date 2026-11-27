@@ -20,6 +20,9 @@ class IntegrationsResource extends SystemConfigResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageIntegrations::route('/')];
+        return [
+            'index' => Pages\EditIntegrations::route('/'),
+            'edit' => Pages\EditIntegrations::route('/{record}/edit'),
+        ];
     }
 }

@@ -20,6 +20,9 @@ class CmiResource extends SystemConfigResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageCmi::route('/')];
+        return [
+            'index' => Pages\EditCmi::route('/'),
+            'edit' => Pages\EditCmi::route('/{record}/edit'),
+        ];
     }
 }

@@ -10,7 +10,7 @@ class TeamInboxResource extends InboxResource
 
     protected static ?string $navigationLabel = 'Boîte équipe';
 
-    protected static ?string $modelLabel = 'Boîte équipe';
+    protected static ?string $modelLabel = 'message';
 
     protected static ?string $pluralModelLabel = 'Boîte équipe';
 
@@ -18,6 +18,11 @@ class TeamInboxResource extends InboxResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageTeamInbox::route('/')];
+        return [
+            'index' => Pages\ListTeamInbox::route('/'),
+            'create' => Pages\CreateTeamInboxMessage::route('/create'),
+            'view' => Pages\ViewTeamInboxMessage::route('/{record}'),
+            'edit' => Pages\EditTeamInboxMessage::route('/{record}/edit'),
+        ];
     }
 }

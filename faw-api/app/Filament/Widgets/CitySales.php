@@ -2,26 +2,61 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Widgets\Concerns\ChartPalette;
+use App\Filament\Widgets\Concerns\UsesAnalyticsPeriod;
 use App\Services\AnalyticsQueries;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Table;
-use Filament\Widgets\TableWidget;
+use Filament\Widgets\ChartWidget;
 
-class CitySales extends TableWidget
+/** Cities ranked by revenue, then by number of requests. */
+class CitySales extends ChartWidget
 {
-    protected int|string|array $columnSpan = 'full';
-
-    protected static ?string $heading = 'Par ville — 30 jours';
+    use UsesAnalyticsPeriod;
 
     protected static bool $isDiscovered = false;
 
+    protected static ?int $sort = 6;
+
+    protected ?string $pollingInterval = null;
+
+    protected ?string $maxHeight = '320px';
+
     public static function canView(): bool
     {
-        return auth()->check();
+        return static::canViewAnalytics();
     }
 
-    public function table(Table $table): Table
+    public function getHeading(): string
     {
-        return $table->defaultKeySort(false)->query(AnalyticsQueries::cities())->columns([TextColumn::make('city')->label('Ville')->wrap(), TextColumn::make('requests')->label('Demandes'), TextColumn::make('sales')->label('Ventes confirmées TTC')->suffix(' DH TTC')])->paginated([10, 30]);
+        return 'Top villes — '.$this->periodLabel();
+    }
+
+    public function getDescription(): string
+    {
+        return 'Chiffre d’affaires confirmé (MAD TTC) par ville ; nombre de demandes reçues entre parenthèses.';
+    }
+
+    protected function getType(): string
+    {
+        return 'bar';
+    }
+
+    protected function getData(): array
+    {
+        $period = $this->period();
+        $rows = AnalyticsQueries::cached('top-cities', $period, function () use ($period) {
+            $r = AnalyticsQueries::range($period);
+
+            return AnalyticsQueries::topCities($r['from'], $r['to']);
+        });
+
+        return [
+            'labels' => array_map(fn (array $c) => $c['city'].' ('.$c['requests'].')', $rows),
+            'datasets' => [['label' => 'Chiffre d’affaires (MAD)', 'data' => array_column($rows, 'sales'), 'backgroundColor' => ChartPalette::BRAND]],
+        ];
+    }
+
+    protected function getOptions(): array
+    {
+        return ['indexAxis' => 'y', 'plugins' => ['legend' => ['display' => false]], 'scales' => ['x' => ['beginAtZero' => true]]];
     }
 }

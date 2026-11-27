@@ -20,6 +20,9 @@ class ShopSettingsResource extends SystemConfigResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageShopSettings::route('/')];
+        return [
+            'index' => Pages\EditShopSettings::route('/'),
+            'edit' => Pages\EditShopSettings::route('/{record}/edit'),
+        ];
     }
 }

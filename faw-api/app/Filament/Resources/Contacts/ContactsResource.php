@@ -8,7 +8,7 @@ class ContactsResource extends InboxResource
 {
     protected static ?string $navigationLabel = 'Formulaires de contact';
 
-    protected static ?string $modelLabel = 'Formulaires de contact';
+    protected static ?string $modelLabel = 'formulaire de contact';
 
     protected static ?string $pluralModelLabel = 'Formulaires de contact';
 
@@ -16,6 +16,11 @@ class ContactsResource extends InboxResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageContacts::route('/')];
+        return [
+            'index' => Pages\ListContacts::route('/'),
+            'create' => Pages\CreateContact::route('/create'),
+            'view' => Pages\ViewContact::route('/{record}'),
+            'edit' => Pages\EditContact::route('/{record}/edit'),
+        ];
     }
 }

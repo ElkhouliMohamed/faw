@@ -33,12 +33,16 @@ class ContentController extends Controller
         if ($r->filled('category')) {
             $category = BlogCategory::where('active', true)->where('slug', $r->query('category'))->first();
             $q->where('categoryId', $category?->id ?? -1);
-        }if ($r->filled('tag')) {
+        }
+        if ($r->filled('tag')) {
             $tag = BlogTag::where('active', true)->where('slug', $r->query('tag'))->first();
             $q->whereJsonContains('tags', (string) ($tag?->id ?? -1));
         }
 
-        $page = $q->orderByDesc('publishedAt')->orderByDesc('id')->paginate(20, $this->fields());
+        // Newest first, posts without a publication date last. PostgreSQL sorts NULL first on DESC, SQLite/MySQL last:
+        // "IS NULL" (false before true) makes it the same everywhere without vendor-specific NULLS LAST syntax.
+        $publishedAt = $q->getQuery()->getGrammar()->wrap('publishedAt');
+        $page = $q->orderByRaw("CASE WHEN {$publishedAt} IS NULL THEN 1 ELSE 0 END")->orderByDesc('publishedAt')->orderByDesc('id')->paginate(20, $this->fields());
         $page->getCollection()->transform(function ($row) {
             return $this->publicPage(is_array($row) ? $row : $row->only($this->fields()));
         });

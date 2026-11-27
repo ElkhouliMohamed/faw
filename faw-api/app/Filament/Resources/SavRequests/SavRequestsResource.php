@@ -8,7 +8,7 @@ class SavRequestsResource extends InboxResource
 {
     protected static ?string $navigationLabel = 'Demandes SAV';
 
-    protected static ?string $modelLabel = 'Demandes SAV';
+    protected static ?string $modelLabel = 'demande SAV';
 
     protected static ?string $pluralModelLabel = 'Demandes SAV';
 
@@ -16,6 +16,11 @@ class SavRequestsResource extends InboxResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageSavRequests::route('/')];
+        return [
+            'index' => Pages\ListSavRequests::route('/'),
+            'create' => Pages\CreateSavRequest::route('/create'),
+            'view' => Pages\ViewSavRequest::route('/{record}'),
+            'edit' => Pages\EditSavRequest::route('/{record}/edit'),
+        ];
     }
 }

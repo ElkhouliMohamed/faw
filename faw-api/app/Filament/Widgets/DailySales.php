@@ -2,26 +2,76 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Widgets\Concerns\ChartPalette;
+use App\Filament\Widgets\Concerns\UsesAnalyticsPeriod;
 use App\Services\AnalyticsQueries;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Table;
-use Filament\Widgets\TableWidget;
+use Filament\Support\RawJs;
+use Filament\Widgets\ChartWidget;
 
-class DailySales extends TableWidget
+/** Chiffre d'affaires per day (per month on 12 months) with the number of requests received. */
+class DailySales extends ChartWidget
 {
-    protected int|string|array $columnSpan = 'full';
-
-    protected static ?string $heading = 'Demandes et ventes par jour — 30 jours';
+    use UsesAnalyticsPeriod;
 
     protected static bool $isDiscovered = false;
 
+    protected static ?int $sort = 3;
+
+    protected int|string|array $columnSpan = 'full';
+
+    protected ?string $pollingInterval = null;
+
+    protected ?string $maxHeight = '320px';
+
     public static function canView(): bool
     {
-        return auth()->check();
+        return static::canViewAnalytics();
     }
 
-    public function table(Table $table): Table
+    public function getHeading(): string
     {
-        return $table->defaultKeySort(false)->query(AnalyticsQueries::daily())->columns([TextColumn::make('period')->label('Jour (Casablanca)')->formatStateUsing(fn ($state) => AnalyticsQueries::dayLabel($state)), TextColumn::make('requests')->label('Demandes'), TextColumn::make('quotes')->label('Devis'), TextColumn::make('sales')->label('Ventes confirmées TTC')->suffix(' DH TTC')])->paginated([10, 30]);
+        return 'Chiffre d’affaires — '.$this->periodLabel();
+    }
+
+    public function getDescription(): string
+    {
+        return 'Ventes confirmées ou payées (MAD TTC, transport inclus) et demandes reçues, '.($this->period() === '12m' ? 'par mois' : 'par jour').', en heure de Casablanca.';
+    }
+
+    protected function getType(): string
+    {
+        return 'line';
+    }
+
+    protected function getData(): array
+    {
+        $period = $this->period();
+        $series = AnalyticsQueries::cached('sales-series', $period, function () use ($period) {
+            $r = AnalyticsQueries::range($period);
+
+            return AnalyticsQueries::salesSeries($r['from'], $r['to']);
+        });
+
+        return [
+            'labels' => $series['labels'],
+            'datasets' => [
+                ['label' => 'Chiffre d’affaires (MAD)', 'data' => $series['revenue'], 'borderColor' => ChartPalette::BRAND, 'backgroundColor' => ChartPalette::BRAND_SOFT, 'fill' => true, 'tension' => 0.3, 'yAxisID' => 'y'],
+                ['label' => 'Demandes reçues', 'data' => $series['requests'], 'borderColor' => ChartPalette::NEUTRAL, 'backgroundColor' => ChartPalette::NEUTRAL, 'borderDash' => [4, 4], 'tension' => 0.3, 'yAxisID' => 'y1'],
+            ],
+        ];
+    }
+
+    protected function getOptions(): RawJs
+    {
+        return RawJs::make(<<<'JS'
+            {
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    y: { beginAtZero: true, position: 'left', ticks: { callback: (value) => new Intl.NumberFormat('fr-FR').format(value) + ' MAD' } },
+                    y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { precision: 0 } },
+                },
+            }
+        JS);
     }
 }

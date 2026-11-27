@@ -1,6 +1,6 @@
 <x-filament-panels::page>
 <x-filament::section heading="Comment lire ces chiffres">
-<p>30 derniers jours. Une demande de devis peut aussi être une demande de commande : ne pas additionner ces deux colonnes. Les vues et ajouts panier sont des événements, pas des personnes uniques.</p>
+<p>Les chiffres portent sur la période choisie en haut de la page (30 jours par défaut). Une demande de devis peut aussi être une demande de commande : ne pas additionner ces deux colonnes. Les vues et ajouts panier sont des événements, pas des personnes uniques.</p>
 <p class="mt-2">Les « ventes confirmées » correspondent uniquement aux demandes au statut confirmé ou livré : ce n’est pas une preuve d’encaissement. Les totaux par jour et ville incluent le transport ; par produit, transport exclu et coupons répartis proportionnellement. Jours affichés en heure de Casablanca.</p>
 </x-filament::section>
 <x-filament::section heading="API GA4 / Search Console">

@@ -3,7 +3,8 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\CustomerOrders\OrderResource;
-use App\Filament\Resources\CustomerOrders\Pages\ManageCustomerOrders;
+use App\Filament\Resources\CustomerOrders\Pages\ListCustomerOrders;
+use App\Filament\Resources\CustomerOrders\Pages\ViewCustomerOrder;
 use App\Models\CustomerOrder;
 use App\Models\OrderStatusHistory;
 use App\Models\Product;
@@ -145,7 +146,7 @@ class CustomerOrderTest extends TestCase
             $this->actingAs(User::factory()->create(['role' => $role]));
             $this->get('/admin/customer-orders')->assertStatus($http);
             if ($http === 200) {
-                $lw = Livewire::test(ManageCustomerOrders::class)->assertSee($o->reference);
+                $lw = Livewire::test(ListCustomerOrders::class)->assertSee($o->reference);
                 $status ? $lw->assertActionVisible(TestAction::make('changerStatut')->table($o)) : $lw->assertActionHidden(TestAction::make('changerStatut')->table($o));
                 $delivery ? $lw->assertActionVisible(TestAction::make('livraison')->table($o)) : $lw->assertActionHidden(TestAction::make('livraison')->table($o));
                 $this->assertFalse(OrderResource::canEdit($o) || OrderResource::canDelete($o) || OrderResource::canCreate());
@@ -153,11 +154,11 @@ class CustomerOrderTest extends TestCase
             auth()->logout();
         }
         $this->actingAs(User::factory()->create(['role' => 'stock_manager']));
-        Livewire::test(ManageCustomerOrders::class)->callAction(TestAction::make('changerStatut')->table($o), data: ['status' => 'pret_retrait', 'note' => 'Prête'])->assertHasNoActionErrors();
+        Livewire::test(ListCustomerOrders::class)->callAction(TestAction::make('changerStatut')->table($o), data: ['status' => 'pret_retrait', 'note' => 'Prête'])->assertHasNoActionErrors();
         $this->assertSame(OrderStatus::ReadyForPickup, $o->fresh()->status);
-        Livewire::test(ManageCustomerOrders::class)->callAction(TestAction::make('livraison')->table($o), data: ['fulfilment' => 'livraison', 'delivery_address' => 'Zone industrielle, Casablanca', 'delivery_note' => 'Appeler avant'])->assertHasNoActionErrors();
+        Livewire::test(ListCustomerOrders::class)->callAction(TestAction::make('livraison')->table($o), data: ['fulfilment' => 'livraison', 'delivery_address' => 'Zone industrielle, Casablanca', 'delivery_note' => 'Appeler avant'])->assertHasNoActionErrors();
         $this->assertSame('Zone industrielle, Casablanca', $o->fresh()->delivery_address);
-        Livewire::test(ManageCustomerOrders::class)->mountAction(TestAction::make('view')->table($o))->assertMountedActionModalSee([$o->reference, 'Historique']);
+        Livewire::test(ViewCustomerOrder::class, ['record' => $o->getKey()])->assertSee([$o->reference, 'Historique'])->assertActionVisible('changerStatut');
     }
 
     public function test_portal_tracks_the_order_and_never_invents_a_pickup_address(): void

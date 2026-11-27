@@ -20,6 +20,9 @@ class SocialsResource extends SystemConfigResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageSocials::route('/')];
+        return [
+            'index' => Pages\EditSocials::route('/'),
+            'edit' => Pages\EditSocials::route('/{record}/edit'),
+        ];
     }
 }

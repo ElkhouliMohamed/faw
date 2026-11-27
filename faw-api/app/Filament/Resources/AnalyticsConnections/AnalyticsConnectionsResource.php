@@ -20,6 +20,9 @@ class AnalyticsConnectionsResource extends SystemConfigResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageAnalyticsConnections::route('/')];
+        return [
+            'index' => Pages\EditAnalyticsConnections::route('/'),
+            'edit' => Pages\EditAnalyticsConnections::route('/{record}/edit'),
+        ];
     }
 }

@@ -3,13 +3,14 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\Bundles\BundleResource;
-use App\Filament\Resources\Bundles\Pages\ManageBundles;
+use App\Filament\Resources\Bundles\Pages\CreateBundle;
 use App\Filament\Resources\Carts\CartResource;
-use App\Filament\Resources\Categorys\Pages\ManageCategorys;
-use App\Filament\Resources\Products\Pages\ManageProducts;
+use App\Filament\Resources\Categorys\Pages\CreateCategory;
+use App\Filament\Resources\Products\Pages\CreateProduct;
+use App\Filament\Resources\Products\Pages\EditProduct;
 use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\Promotions\PromotionResource;
-use App\Filament\Resources\Users\Pages\ManageUsers;
+use App\Filament\Resources\Users\Pages\EditUser;
 use App\Filament\Widgets\CitySales;
 use App\Filament\Widgets\DailySales;
 use App\Filament\Widgets\Funnel;
@@ -33,7 +34,6 @@ use App\Models\Warranty;
 use App\Services\AnalyticsQueries;
 use App\Services\QuoteService;
 use Carbon\CarbonImmutable;
-use Filament\Actions\Testing\TestAction;
 use Filament\Auth\Pages\Login;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -167,7 +167,7 @@ class ShopTest extends TestCase
     public function test_filament_product_edit_updates_catalog_and_is_audited(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'admin']));
-        Livewire::test(ManageProducts::class)->callAction(TestAction::make('edit')->table(Product::first()), data: ['title' => 'Porte coupe-feu EI60 90 cm mise à jour', 'price' => 2250])->assertHasNoActionErrors();
+        Livewire::test(EditProduct::class, ['record' => Product::first()->getKey()])->fillForm(['title' => 'Porte coupe-feu EI60 90 cm mise à jour', 'price' => 2250])->call('save')->assertHasNoFormErrors();
         $this->showPublicPrices();
         $this->getJson('/api/catalog')->assertJsonPath('0.price', 2250);
         $this->assertDatabaseHas('AuditLog', ['action' => 'updated', 'entity' => 'Product']);
@@ -264,7 +264,7 @@ class ShopTest extends TestCase
         $user = User::factory()->create(['role' => 'admin', 'password' => Hash::make('local-test-only-password')]);
         Livewire::test(Login::class)->fillForm(['email' => $user->email, 'password' => 'local-test-only-password'])->call('authenticate')->assertHasNoFormErrors();
         $this->assertAuthenticatedAs($user);
-        Livewire::test(ManageUsers::class)->callAction(TestAction::make('edit')->table($user), data: ['name' => 'Propriétaire test'])->assertHasNoActionErrors();
+        Livewire::test(EditUser::class, ['record' => $user->getRouteKey()])->fillForm(['name' => 'Propriétaire test'])->call('save')->assertHasNoFormErrors();
         $this->assertTrue(Hash::check('local-test-only-password', $user->fresh()->password));
     }
 
@@ -278,9 +278,9 @@ class ShopTest extends TestCase
     public function test_crud_product_and_category_creation(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'admin']));
-        Livewire::test(ManageProducts::class)->callAction('create', data: ['id' => 'TEST-PRODUCT', 'slug' => 'test-product', 'title' => 'Produit de test', 'description' => 'Illustration non contractuelle', 'category' => 'Portes coupe-feu', 'price' => 100, 'availability' => 'en stock', 'active' => true])->assertHasNoActionErrors();
+        Livewire::test(CreateProduct::class)->fillForm(['id' => 'TEST-PRODUCT', 'slug' => 'test-product', 'title' => 'Produit de test', 'description' => 'Illustration non contractuelle', 'category' => 'Portes coupe-feu', 'price' => 100, 'availability' => 'en stock', 'active' => true])->call('create')->assertHasNoFormErrors();
         $this->assertDatabaseHas('Product', ['id' => 'TEST-PRODUCT', 'price' => 100]);
-        Livewire::test(ManageCategorys::class)->callAction('create', data: ['slug' => 'test-categorie', 'label' => 'Catégorie de test', 'family' => 'incendie', 'active' => true])->assertHasNoActionErrors();
+        Livewire::test(CreateCategory::class)->fillForm(['slug' => 'test-categorie', 'label' => 'Catégorie de test', 'family' => 'incendie', 'active' => true])->call('create')->assertHasNoFormErrors();
         $this->getJson('/api/categories')->assertJsonFragment(['slug' => 'test-categorie']);
     }
 
@@ -385,7 +385,7 @@ class ShopTest extends TestCase
         $badge = Badge::create(['label' => 'Nouveau', 'tone' => 'neutral', 'active' => true]);
         $warranty = Warranty::create(['name' => 'Conditions à compléter', 'text' => '', 'active' => true]);
         Attribute::create(['key' => 'largeur', 'label' => 'Largeur', 'unit' => 'cm', 'kind' => 'number', 'active' => true]);
-        Livewire::test(ManageProducts::class)->callAction(TestAction::make('edit')->table(Product::first()), data: ['badges' => [(string) $badge->id], 'attributes' => ['largeur' => '90'], 'warrantyId' => $warranty->id])->assertHasNoActionErrors();
+        Livewire::test(EditProduct::class, ['record' => Product::first()->getKey()])->fillForm(['badges' => [(string) $badge->id], 'attributes' => ['largeur' => '90'], 'warrantyId' => $warranty->id])->call('save')->assertHasNoFormErrors();
         $p = Product::first();
         $this->assertEquals('90', json_decode($p->attributes, true)['largeur']);
         $this->assertEquals((string) $badge->id, $p->badges);
@@ -406,7 +406,7 @@ class ShopTest extends TestCase
     public function test_new_resources_are_real_authenticated_filament_pages_and_viewers_cannot_create(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'admin']));
-        Livewire::test(ManageBundles::class)->callAction('create', data: ['slug' => 'pack-filament', 'title' => 'Pack test', 'items' => [['id' => 'CF-EI60-90', 'qty' => 2]], 'price' => 4000, 'active' => true])->assertHasNoActionErrors();
+        Livewire::test(CreateBundle::class)->fillForm(['slug' => 'pack-filament', 'title' => 'Pack test', 'items' => [['id' => 'CF-EI60-90', 'qty' => 2]], 'price' => 4000, 'active' => true])->call('create')->assertHasNoFormErrors();
         $this->assertDatabaseHas('Bundle', ['slug' => 'pack-filament']);
         foreach (['shippingcitys', 'feerules', 'warrantys', 'attributes', 'badges', 'bundles', 'promotions', 'coupons', 'popups', 'landingpages', 'redirects', 'carts', 'catalogue'] as $slug) {
             $this->get('/admin/'.$slug)->assertOk();

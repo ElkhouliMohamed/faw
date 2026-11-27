@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\Quotes\Pages\ManageQuotes;
+use App\Filament\Resources\Quotes\Pages\ListQuotes;
 use App\Filament\Resources\Quotes\QuoteResource;
 use App\Models\Quote;
 use App\Models\User;
@@ -85,7 +85,9 @@ class RoleHttpAuthorizationTest extends TestCase
             $this->assertFalse($resource::canDelete($record), "viewer delete $resource");
         }
         $q = $this->quote();
-        Livewire::test(ManageQuotes::class)->callAction(TestAction::make('edit')->table($q), data: ['clientName' => 'Modifié', 'totalTtc' => 1]);
+        // Quotes open on a read-only page: there is no edit page to submit.
+        $this->assertFalse(QuoteResource::hasPage('edit'));
+        $this->get(QuoteResource::getUrl('view', ['record' => $q]))->assertOk()->assertSee('Client synthétique');
         $this->assertSame('Client synthétique', $q->fresh()->clientName);
         $this->assertSame(1200, (int) $q->fresh()->totalTtc);
     }
@@ -108,7 +110,7 @@ class RoleHttpAuthorizationTest extends TestCase
         $q = $this->quote();
         foreach (['super_admin' => true, 'sales_manager' => true, 'sales_rep' => false, 'viewer' => false] as $role => $can) {
             $this->actingAs(User::factory()->create(['role' => $role]));
-            $lw = Livewire::test(ManageQuotes::class);
+            $lw = Livewire::test(ListQuotes::class);
             foreach (['revoquerLien', 'regenererLien'] as $action) {
                 $can ? $lw->assertActionVisible(TestAction::make($action)->table($q)) : $lw->assertActionHidden(TestAction::make($action)->table($q));
             }
@@ -116,9 +118,9 @@ class RoleHttpAuthorizationTest extends TestCase
         }
 
         $this->actingAs(User::factory()->create(['role' => 'sales_manager']));
-        Livewire::test(ManageQuotes::class)->callAction(TestAction::make('revoquerLien')->table($q))->assertHasNoActionErrors();
+        Livewire::test(ListQuotes::class)->callAction(TestAction::make('revoquerLien')->table($q))->assertHasNoActionErrors();
         $this->assertNotNull($q->fresh()->tokenRevokedAt);
-        Livewire::test(ManageQuotes::class)->callAction(TestAction::make('regenererLien')->table($q))->assertHasNoActionErrors()->assertNotified();
+        Livewire::test(ListQuotes::class)->callAction(TestAction::make('regenererLien')->table($q))->assertHasNoActionErrors()->assertNotified();
         $fresh = $q->fresh();
         $this->assertNull($fresh->tokenRevokedAt);
         $this->assertSame('actif', $fresh->linkState());

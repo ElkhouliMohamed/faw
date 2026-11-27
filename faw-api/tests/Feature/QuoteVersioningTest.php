@@ -2,7 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\Quotes\Pages\ManageQuotes;
+use App\Filament\Resources\Quotes\Pages\ListQuotes;
+use App\Filament\Resources\Quotes\Pages\ViewQuote;
 use App\Filament\Resources\Quotes\QuoteResource;
 use App\Models\Category;
 use App\Models\Product;
@@ -292,21 +293,21 @@ class QuoteVersioningTest extends TestCase
         $expect = ['super_admin' => true, 'sales_manager' => true, 'sales_rep' => false, 'viewer' => false];
         foreach ($expect as $role => $can) {
             $this->actingAs(User::factory()->create(['role' => $role]));
-            $lw = Livewire::test(ManageQuotes::class);
+            $lw = Livewire::test(ListQuotes::class);
             $can ? $lw->assertActionVisible(TestAction::make('nouvelleVersion')->table($q)) : $lw->assertActionHidden(TestAction::make('nouvelleVersion')->table($q));
             auth()->logout();
         }
 
         // The viewer can open the quote and read the versions tab, but cannot run the action.
         $this->actingAs(User::factory()->create(['role' => 'viewer']));
-        Livewire::test(ManageQuotes::class)->mountAction(TestAction::make('edit')->table($q))->assertHasNoErrors()->assertMountedActionModalSee(['Versions', 'Devis-9001-FAW.pdf', '9001']);
+        Livewire::test(ViewQuote::class, ['record' => $q->getKey()])->assertHasNoErrors()->assertSee(['Versions', 'Devis-9001-FAW.pdf', '9001'])->assertActionHidden('nouvelleVersion');
         $html = (string) QuoteResource::versionsHtml($q);
         $this->assertStringContainsString('Devis-9001-FAW.pdf', $html);
         $this->assertStringContainsString(route('admin.quote.version.pdf', [$q, 1]), $html);
         $this->assertStringContainsString('non envoyé', $html);
         $this->get(route('admin.quote.version.pdf', [$q, 1]))->assertOk();
         try {
-            Livewire::test(ManageQuotes::class)->callAction(TestAction::make('nouvelleVersion')->table($q), data: ['lines' => [['position' => 1, 'qty' => 5, 'unit_ttc' => 2200]], 'mode' => 'retrait', 'reason' => 'x']);
+            Livewire::test(ListQuotes::class)->callAction(TestAction::make('nouvelleVersion')->table($q), data: ['lines' => [['position' => 1, 'qty' => 5, 'unit_ttc' => 2200]], 'mode' => 'retrait', 'reason' => 'x']);
         } catch (\Throwable) {
         }
         $this->assertSame(1, QuoteVersion::where('quote_id', $q->id)->count());
@@ -320,7 +321,7 @@ class QuoteVersioningTest extends TestCase
         $this->get(route('admin.quote.version.pdf', [$q, 1]))->assertRedirect('/admin/login');
 
         $this->actingAs(User::factory()->create(['role' => 'sales_manager']));
-        Livewire::test(ManageQuotes::class)
+        Livewire::test(ListQuotes::class)
             ->callAction(TestAction::make('nouvelleVersion')->table($q), data: ['lines' => [['position' => 1, 'qty' => 4, 'unit_ttc' => 2000]], 'mode' => 'retrait', 'ville' => null, 'reason' => 'Prix 4 portes', 'send' => false])
             ->assertHasNoActionErrors()->assertNotified();
         $v2 = QuoteVersion::where('quote_id', $q->id)->where('version', 2)->sole();

@@ -9,7 +9,7 @@ use App\Services\EmailSettings;
 use App\Services\QuoteService;
 use App\Support\ResourceAccess;
 use Filament\Actions\Action;
-use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -18,10 +18,12 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
@@ -40,6 +42,8 @@ class QuoteResource extends OwnerResource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Ventes';
 
+    protected static ?int $navigationSort = 20;
+
     public static function canCreate(): bool
     {
         return false;
@@ -55,24 +59,150 @@ class QuoteResource extends OwnerResource
         return static::userCan(ResourceAccess::abilities(static::class)['view']);
     }
 
-    public static function form(Schema $schema): Schema
+    public static function getNavigationBadge(): ?string
     {
-        return $schema->components([Tabs::make('devis')->tabs([Tab::make('Devis')->schema([TextInput::make('clientName')->label('Client')->maxLength(255)->disabled(), TextInput::make('phone')->label('Téléphone')->maxLength(255)->disabled(), TextInput::make('email')->label('Email')->maxLength(255)->disabled(), TextInput::make('city')->label('Ville')->maxLength(255)->disabled(), TextInput::make('status')->label('Statut')->maxLength(255)->disabled(), TextInput::make('number')->label('Numéro réservé')->maxLength(255)->disabled(), TextInput::make('totalTtc')->label('Total TTC (DH)')->maxLength(255)->disabled(), Textarea::make('reviewReasons')->label('Validation bloquée')->maxLength(5000)->columnSpanFull()->disabled(), Textarea::make('transport')->label('Transport')->maxLength(5000)->columnSpanFull()->disabled(), Textarea::make('note')->label('Note de demande (non modifiable)')->maxLength(5000)->columnSpanFull()->disabled(), Textarea::make('line_details')->label('Articles')->formatStateUsing(fn ($record) => $record ? collect(json_decode($record->lines, true))->map(fn ($l) => $l['qty'].' × '.($l['title'] ?? $l['id']).' — '.($l['total'] ?? '').' DH TTC')->implode("\n") : '')->disabled()->dehydrated(false)->columnSpanFull(), TextInput::make('link_state')->label('Lien privé client')->formatStateUsing(fn ($record) => $record ? static::linkSummary($record) : '')->helperText('Le lien n’est jamais stocké en clair. Pour le renvoyer au client : « Régénérer le lien ».')->disabled()->dehydrated(false)->columnSpanFull(), TextInput::make('emailStatus')->label('État email')->maxLength(255)->disabled()->helperText(EmailSettings::ready() ? 'Email automatique configuré' : 'Email automatique désactivé : SMTP / Resend non configuré')])->columns(2), Tab::make('Versions')->badge(fn ($record) => $record ? (QuoteVersion::where('quote_id', $record->id)->count() ?: null) : null)->schema([TextEntry::make('versions_history')->hiddenLabel()->state(fn ($record) => $record ? static::versionsHtml($record) : '')->html()->columnSpanFull()])])->columnSpanFull()]);
+        $n = Quote::where('status', 'à valider')->count();
+
+        return $n > 0 ? (string) $n : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Demandes de devis à valider';
+    }
+
+    public static function statusColor(?string $status): string
+    {
+        return match ($status) {
+            'à valider' => 'warning',
+            'validé' => 'info',
+            'envoyé' => 'primary',
+            'refusé' => 'danger',
+            default => 'gray',
+        };
+    }
+
+    public static function decisionColor(?string $decision): string
+    {
+        return match ($decision) {
+            'accepté' => 'success',
+            'refusé' => 'danger',
+            'modification demandée' => 'warning',
+            default => 'gray',
+        };
+    }
+
+    public static function infolist(Schema $schema): Schema
+    {
+        $dh = fn ($state) => $state === null || $state === '' ? '—' : number_format((float) $state, 0, ',', ' ').' DH TTC';
+
+        return $schema->components([Tabs::make('devis')->tabs([
+            Tab::make('Devis')->schema([
+                Section::make('Demande')->schema([
+                    TextEntry::make('status')->label('Statut')->badge()->color(fn ($state) => static::statusColor($state)),
+                    TextEntry::make('customerDecision')->label('Décision du client')->badge()->color(fn ($state) => static::decisionColor($state))->placeholder('En attente'),
+                    TextEntry::make('number')->label('Numéro réservé')->placeholder('Pas encore validé'),
+                    TextEntry::make('versionNumber')->label('Version en cours')->placeholder('—'),
+                    TextEntry::make('totalTtc')->label('Total TTC')->formatStateUsing($dh)->weight('bold'),
+                    TextEntry::make('createdAt')->label('Reçue le')->dateTime('d/m/Y H:i', 'Africa/Casablanca'),
+                ])->columns(['default' => 1, 'md' => 3]),
+                Section::make('Client')->schema([
+                    TextEntry::make('clientName')->label('Client'),
+                    TextEntry::make('clientType')->label('Type')->placeholder('—'),
+                    TextEntry::make('phone')->label('Téléphone')->copyable()->placeholder('—'),
+                    TextEntry::make('email')->label('Email')->copyable()->placeholder('—'),
+                    TextEntry::make('city')->label('Ville'),
+                ])->columns(['default' => 1, 'md' => 3]),
+                Section::make('Contenu')->schema([
+                    TextEntry::make('line_details')->label('Articles')->state(fn (Quote $record) => collect(json_decode((string) $record->lines, true) ?: [])->map(fn ($l) => ($l['qty'] ?? '').' × '.($l['title'] ?? $l['id'] ?? '').' — '.($l['total'] ?? '').' DH TTC')->implode("\n"))->extraAttributes(['style' => 'white-space:pre-line'])->columnSpanFull(),
+                    TextEntry::make('transport')->label('Transport')->placeholder('—')->columnSpanFull(),
+                    TextEntry::make('note')->label('Note de demande (non modifiable)')->placeholder('—')->columnSpanFull(),
+                    TextEntry::make('reviewReasons')->label('Validation bloquée')->placeholder('Aucun blocage')->color('danger')->columnSpanFull(),
+                    TextEntry::make('cancelReason')->label('Motif du refus')->placeholder('—')->visible(fn (Quote $record) => $record->status === 'refusé')->columnSpanFull(),
+                ]),
+                Section::make('Lien privé et email')->schema([
+                    TextEntry::make('link_state')->label('Lien privé client')->state(fn (Quote $record) => static::linkSummary($record))->helperText('Le lien n’est jamais stocké en clair. Pour le renvoyer au client : « Régénérer le lien ».'),
+                    TextEntry::make('emailStatus')->label('État email')->placeholder('—')->helperText(fn () => EmailSettings::ready() ? 'Email automatique configuré' : 'Email automatique désactivé : SMTP / Resend non configuré'),
+                ])->columns(['default' => 1, 'md' => 2]),
+            ]),
+            Tab::make('Versions')->badge(fn ($record) => $record ? (QuoteVersion::where('quote_id', $record->id)->count() ?: null) : null)->schema([TextEntry::make('versions_history')->hiddenLabel()->state(fn ($record) => $record ? static::versionsHtml($record) : '')->html()->columnSpanFull()]),
+        ])->columnSpanFull()]);
     }
 
     public static function table(Table $table): Table
     {
-        return $table->columns([TextColumn::make('id')->label('Demande')->sortable(), TextColumn::make('clientName')->label('Client')->searchable(), TextColumn::make('status')->label('Statut')->badge(), TextColumn::make('number')->label('Numéro'), TextColumn::make('versionNumber')->label('Version')->placeholder('—'), TextColumn::make('customerDecision')->label('Décision client')->badge()->placeholder('—'), TextColumn::make('totalTtc')->label('Total')->suffix(' DH TTC'), TextColumn::make('reviewReasons')->label('Revue équipe')->wrap()->limit(60), TextColumn::make('createdAt')->label('Date')->dateTime('d/m/Y H:i')->sortable()])->defaultSort('createdAt', 'desc')->recordActions([EditAction::make()->label('Ouvrir'), Action::make('valider')->label('Valider')->color('success')->requiresConfirmation()->modalDescription('Réserve un numéro, génère le PDF et l’envoie au client par e-mail (pièce jointe, sans lien) si Resend est configuré.')->visible(fn ($record) => auth()->user()?->canDo('validate.quotes') && $record->status === 'à valider')->action(function ($record) {
-            try {
-                $message = app(QuoteService::class)->validate($record);
-                Notification::make()->title($message)->success()->send();
-            } catch (\Throwable $e) {
-                Notification::make()->title('Validation bloquée')->body($e instanceof ValidationException ? collect($e->errors())->flatten()->implode(' ; ') : $e->getMessage())->danger()->send();
-            }
-        }), Action::make('pdf')->label('PDF')->visible(fn ($record) => auth()->user()?->canDo('view.quotes') && in_array($record->status, ['validé', 'envoyé']) && $record->pdfFile)->url(fn ($record) => route('admin.quote.pdf', $record))->openUrlInNewTab(), Action::make('renvoyer')->label('Renvoyer l’email')->requiresConfirmation()->visible(fn ($record) => auth()->user()?->canDo('validate.quotes') && in_array($record->status, ['validé', 'envoyé']))->disabled(fn () => ! EmailSettings::ready())->tooltip(fn () => EmailSettings::ready() ? '' : 'SMTP / Resend non configuré — email désactivé')->action(function ($record) {
-            $message = Cache::lock('faw-quote-workflow', 120)->block(5, fn () => app(QuoteService::class)->sendEmail($record->fresh(), true));
-            Notification::make()->title($message)->send();
-        }), Action::make('refuser')->label('Refuser')->color('danger')->requiresConfirmation()->visible(fn ($record) => auth()->user()?->canDo('validate.quotes') && in_array($record->status, ['à valider', 'validé']))->schema([Textarea::make('reason')->label('Motif')->required()->maxLength(300)])->action(fn ($record, $data) => $record->update(['status' => 'refusé', 'cancelReason' => $data['reason'], 'cancelledAt' => now()])), static::newVersionAction(), static::revokeLinkAction(), static::regenerateLinkAction()]);
+        return $table->columns([
+            TextColumn::make('id')->label('Demande')->sortable(),
+            TextColumn::make('clientName')->label('Client')->searchable()->description(fn (Quote $record) => $record->city ?: null),
+            TextColumn::make('status')->label('Statut')->badge()->color(fn ($state) => static::statusColor($state)),
+            TextColumn::make('number')->label('Numéro'),
+            TextColumn::make('versionNumber')->label('Version')->placeholder('—'),
+            TextColumn::make('customerDecision')->label('Décision client')->badge()->color(fn ($state) => static::decisionColor($state))->placeholder('—'),
+            TextColumn::make('totalTtc')->label('Total')->suffix(' DH TTC'),
+            TextColumn::make('reviewReasons')->label('Revue équipe')->wrap()->limit(60)->toggleable(),
+            TextColumn::make('createdAt')->label('Date')->dateTime('d/m/Y H:i', 'Africa/Casablanca')->sortable(),
+        ])->defaultSort('createdAt', 'desc')
+            ->filters([SelectFilter::make('status')->label('Statut')->options(['à valider' => 'À valider', 'validé' => 'Validé', 'envoyé' => 'Envoyé', 'refusé' => 'Refusé'])])
+            ->recordActions([ViewAction::make()->label('Ouvrir'), ...static::workflowActions()]);
+    }
+
+    /** Workflow actions, shared by the list rows and the quote page header. @return list<Action> */
+    public static function workflowActions(): array
+    {
+        return [static::validateAction(), static::pdfAction(), static::resendAction(), static::refuseAction(), static::newVersionAction(), static::revokeLinkAction(), static::regenerateLinkAction()];
+    }
+
+    public static function validateAction(): Action
+    {
+        return Action::make('valider')->label('Valider')->color('success')->icon('heroicon-o-check-badge')->requiresConfirmation()
+            ->modalDescription('Réserve un numéro, génère le PDF et l’envoie au client par e-mail (pièce jointe, sans lien) si Resend est configuré.')
+            ->visible(fn ($record) => auth()->user()?->canDo('validate.quotes') && $record?->status === 'à valider')
+            ->action(function ($record) {
+                abort_unless(auth()->user()?->canDo('validate.quotes'), 403);
+                try {
+                    $message = app(QuoteService::class)->validate($record);
+                    Notification::make()->title($message)->success()->send();
+                } catch (\Throwable $e) {
+                    Notification::make()->title('Validation bloquée')->body($e instanceof ValidationException ? collect($e->errors())->flatten()->implode(' ; ') : $e->getMessage())->danger()->send();
+                }
+            });
+    }
+
+    public static function pdfAction(): Action
+    {
+        return Action::make('pdf')->label('PDF')->icon('heroicon-o-document-arrow-down')->color('gray')
+            ->visible(fn ($record) => auth()->user()?->canDo('view.quotes') && in_array($record?->status, ['validé', 'envoyé']) && $record?->pdfFile)
+            ->url(fn ($record) => $record ? route('admin.quote.pdf', $record) : null)->openUrlInNewTab();
+    }
+
+    public static function resendAction(): Action
+    {
+        return Action::make('renvoyer')->label('Renvoyer l’email')->icon('heroicon-o-paper-airplane')->requiresConfirmation()
+            ->visible(fn ($record) => auth()->user()?->canDo('validate.quotes') && in_array($record?->status, ['validé', 'envoyé']))
+            ->disabled(fn () => ! EmailSettings::ready())
+            ->tooltip(fn () => EmailSettings::ready() ? '' : 'SMTP / Resend non configuré — email désactivé')
+            ->action(function ($record) {
+                abort_unless(auth()->user()?->canDo('validate.quotes'), 403);
+                $message = Cache::lock('faw-quote-workflow', 120)->block(5, fn () => app(QuoteService::class)->sendEmail($record->fresh(), true));
+                Notification::make()->title($message)->send();
+            });
+    }
+
+    public static function refuseAction(): Action
+    {
+        return Action::make('refuser')->label('Refuser')->color('danger')->icon('heroicon-o-x-circle')->requiresConfirmation()
+            ->modalDescription('Le devis passe au statut « refusé ». Le motif est conservé dans la fiche.')
+            ->visible(fn ($record) => auth()->user()?->canDo('validate.quotes') && in_array($record?->status, ['à valider', 'validé']))
+            ->schema([Textarea::make('reason')->label('Motif')->required()->maxLength(300)])
+            ->action(function ($record, $data) {
+                abort_unless(auth()->user()?->canDo('validate.quotes'), 403);
+                $record->update(['status' => 'refusé', 'cancelReason' => $data['reason'], 'cancelledAt' => now()]);
+            });
     }
 
     public static function versionsHtml(Quote $record): HtmlString
@@ -183,6 +313,9 @@ class QuoteResource extends OwnerResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageQuotes::route('/')];
+        return [
+            'index' => Pages\ListQuotes::route('/'),
+            'view' => Pages\ViewQuote::route('/{record}'),
+        ];
     }
 }

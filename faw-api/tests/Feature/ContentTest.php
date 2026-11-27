@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\ContentPages\Pages\ManageContentPages;
-use App\Filament\Resources\Medias\Pages\ManageMedias;
-use App\Filament\Resources\SavRequests\Pages\ManageSavRequests;
-use App\Filament\Resources\Tickets\Pages\ManageTickets;
+use App\Filament\Resources\ContentPages\Pages\CreateContentPage;
+use App\Filament\Resources\Medias\Pages\CreateMedia;
+use App\Filament\Resources\Medias\Pages\ListMedias;
+use App\Filament\Resources\SavRequests\Pages\EditSavRequest;
+use App\Filament\Resources\Tickets\Pages\CreateTicket;
+use App\Filament\Resources\Tickets\Pages\ListTickets;
 use App\Models\ContentPage;
 use App\Models\InboxMessage;
 use App\Models\Media;
@@ -30,7 +32,7 @@ class ContentTest extends TestCase
     public function test_real_cms_create_sanitizes_html_and_published_content_is_public(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'admin']));
-        Livewire::test(ManageContentPages::class)->callAction('create', data: ['slug' => 'test-page', 'title' => 'Page de test', 'bodyHtml' => '<p onclick="bad()">Texte <strong>utile</strong></p><script>alert(1)</script><a href="javascript:bad()">Lien</a>', 'blocks' => [['type' => 'text', 'title' => 'Section test', 'body' => 'Texte de test.']], 'published' => true])->assertHasNoActionErrors();
+        Livewire::test(CreateContentPage::class)->fillForm(['slug' => 'test-page', 'title' => 'Page de test', 'bodyHtml' => '<p onclick="bad()">Texte <strong>utile</strong></p><script>alert(1)</script><a href="javascript:bad()">Lien</a>', 'blocks' => [['type' => 'text', 'title' => 'Section test', 'body' => 'Texte de test.']], 'published' => true])->call('create')->assertHasNoFormErrors();
         $p = ContentPage::first();
         $this->assertSame('page', $p->kind);
         $this->assertStringNotContainsString('script', $p->bodyHtml);
@@ -63,7 +65,7 @@ class ContentTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin);
         $this->get('/admin/attachments/'.$m->id.'/0')->assertOk();
-        Livewire::test(ManageSavRequests::class)->callAction(TestAction::make('edit')->table($m), data: ['status' => 'en cours', 'assignedTo' => $admin->id, 'notes' => 'Examen interne'])->assertHasNoActionErrors();
+        Livewire::test(EditSavRequest::class, ['record' => $m->getKey()])->fillForm(['status' => 'en cours', 'assignedTo' => $admin->id, 'notes' => 'Examen interne'])->call('save')->assertHasNoFormErrors();
         $this->assertEquals('en cours', $m->fresh()->status);
         $this->post('/api/contacts', [...$payload, 'photos' => [UploadedFile::fake()->create('x.svg', 1, 'image/svg+xml')]], ['Accept' => 'application/json'])->assertUnprocessable();
     }
@@ -71,10 +73,10 @@ class ContentTest extends TestCase
     public function test_owner_can_create_support_ticket_and_viewer_cannot(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'admin']));
-        Livewire::test(ManageTickets::class)->callAction('create', data: ['kind' => 'ticket', 'name' => 'Client test', 'subject' => 'Assistance', 'message' => 'Question de test.', 'status' => 'nouveau', 'priority' => 'haute'])->assertHasNoActionErrors();
+        Livewire::test(CreateTicket::class)->fillForm(['kind' => 'ticket', 'name' => 'Client test', 'subject' => 'Assistance', 'message' => 'Question de test.', 'status' => 'nouveau', 'priority' => 'haute'])->call('create')->assertHasNoFormErrors();
         $this->assertDatabaseHas('InboxMessage', ['kind' => 'ticket', 'priority' => 'haute']);
         $this->actingAs(User::factory()->create(['role' => 'viewer']));
-        Livewire::test(ManageTickets::class)->assertActionHidden('create')->assertActionHidden(TestAction::make('edit')->table(InboxMessage::first()));
+        Livewire::test(ListTickets::class)->assertActionHidden('create')->assertActionHidden(TestAction::make('edit')->table(InboxMessage::first()));
         $this->get('/admin/users')->assertForbidden();
     }
 
@@ -82,10 +84,10 @@ class ContentTest extends TestCase
     {
         Storage::fake('public');
         $this->actingAs(User::factory()->create(['role' => 'admin']));
-        Livewire::test(ManageMedias::class)->callAction('create', data: ['file' => [UploadedFile::fake()->createWithContent('image.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+M/9sAAAAASUVORK5CYII='))], 'alt' => 'Image de test'])->assertHasNoActionErrors();
+        Livewire::test(CreateMedia::class)->fillForm(['file' => [UploadedFile::fake()->createWithContent('image.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+M/9sAAAAASUVORK5CYII='))], 'alt' => 'Image de test'])->call('create')->assertHasNoFormErrors();
         $m = Media::first();
         $this->assertStringStartsWith('/storage/media/', $m->url);
-        Livewire::test(ManageMedias::class)->assertTableColumnStateSet('preview', url($m->url), record: $m);
+        Livewire::test(ListMedias::class)->assertTableColumnStateSet('preview', url($m->url), record: $m);
         Storage::disk('public')->assertExists($m->file);
         $m->delete();
         Storage::disk('public')->assertMissing($m->file);

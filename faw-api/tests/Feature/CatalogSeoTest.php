@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\Categorys\Pages\ManageCategorys;
+use App\Filament\Resources\Categorys\Pages\CreateCategory;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\User;
@@ -71,12 +71,14 @@ class CatalogSeoTest extends TestCase
     {
         $root = $this->cat('portes', ['seoTitle' => 'Titre déjà pris']);
         $this->actingAs(User::factory()->create(['role' => 'catalogue_manager']));
-        Livewire::test(ManageCategorys::class)
-            ->callAction(TestAction::make('create'), data: ['slug' => 'portes-2-vantaux', 'label' => 'Portes 2 vantaux', 'family' => 'portes-coupe-feu', 'parentId' => $root->id, 'h1' => 'Portes coupe-feu 2 vantaux', 'seoTitle' => 'Titre déjà pris', 'active' => true])
-            ->assertHasActionErrors(['seoTitle' => 'unique']);
-        Livewire::test(ManageCategorys::class)
-            ->callAction(TestAction::make('create'), data: ['slug' => 'portes-2-vantaux', 'label' => 'Portes 2 vantaux', 'family' => 'portes-coupe-feu', 'parentId' => $root->id, 'h1' => 'Portes coupe-feu 2 vantaux', 'seoTitle' => 'Portes coupe-feu 2 vantaux à Casablanca', 'active' => true])
-            ->assertHasNoActionErrors();
+        Livewire::test(CreateCategory::class)
+            ->fillForm(['slug' => 'portes-2-vantaux', 'label' => 'Portes 2 vantaux', 'family' => 'portes-coupe-feu', 'parentId' => $root->id, 'h1' => 'Portes coupe-feu 2 vantaux', 'seoTitle' => 'Titre déjà pris', 'active' => true])
+            ->call('create')
+            ->assertHasFormErrors(['seoTitle' => 'unique']);
+        Livewire::test(CreateCategory::class)
+            ->fillForm(['slug' => 'portes-2-vantaux', 'label' => 'Portes 2 vantaux', 'family' => 'portes-coupe-feu', 'parentId' => $root->id, 'h1' => 'Portes coupe-feu 2 vantaux', 'seoTitle' => 'Portes coupe-feu 2 vantaux à Casablanca', 'active' => true])
+            ->call('create')
+            ->assertHasNoFormErrors();
         $c = Category::where('slug', 'portes-2-vantaux')->sole();
         $this->assertSame([$root->id, 'Portes coupe-feu 2 vantaux'], [$c->parentId, $c->h1]);
     }

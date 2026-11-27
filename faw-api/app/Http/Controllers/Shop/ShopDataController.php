@@ -38,7 +38,23 @@ class ShopDataController extends Controller
         $show = PriceVisibility::showOnSite();
         $order = fn ($q) => $q->orderBy('sortOrder')->orderBy('id');
 
-        $categories = $order(Category::query())->get()->map(fn (Category $c) => [
+        // Only published categories: active, and every ancestor active too (a hidden parent hides its subtree).
+        $allCategories = $order(Category::query())->get();
+        $byId = $allCategories->keyBy('id');
+        $published = function (Category $c) use ($byId): bool {
+            for ($depth = 0, $node = $c; $node && $depth < 8; $depth++) {
+                if (! $node->active) {
+                    return false;
+                }
+                if (! $node->parentId) {
+                    return true;
+                }
+                $node = $byId->get($node->parentId);
+            }
+
+            return false;
+        };
+        $categories = $allCategories->filter($published)->values()->map(fn (Category $c) => [
             'id' => (int) $c->id, 'parentId' => $c->parentId ? (int) $c->parentId : null, 'slug' => (string) $c->slug, 'label' => (string) $c->label,
             'short' => (string) ($c->short ?? ''), 'family' => (string) ($c->family ?? ''), 'description' => (string) ($c->description ?? ''),
             'image' => $c->image ?: null, 'seoTitle' => (string) ($c->seoTitle ?? ''), 'seoDescription' => (string) ($c->seoDescription ?? ''),
@@ -47,8 +63,22 @@ class ShopDataController extends Controller
         $badges = $order(Badge::where('active', true))->get()->map(fn (Badge $b) => ['id' => (int) $b->id, 'label' => (string) $b->label, 'tone' => (string) ($b->tone ?: 'neutral')]);
         $warranties = Warranty::where('active', true)->orderBy('id')->get()->map(fn (Warranty $w) => ['id' => (int) $w->id, 'name' => (string) $w->name, 'text' => (string) ($w->text ?? '')]);
         $attributes = $order(Attribute::where('active', true))->get()->map(fn (Attribute $a) => ['key' => (string) $a->key, 'label' => (string) $a->label, 'unit' => (string) ($a->unit ?? ''), 'showInSpecs' => (bool) $a->showInSpecs]);
-        $bundles = $order(Bundle::where('active', true))->get()->map(function (Bundle $b) use ($show) {
-            $items = is_array($b->items) ? $b->items : (json_decode((string) $b->items, true) ?: []);
+        $bundleItems = fn (Bundle $b): array => is_array($b->items) ? $b->items : (json_decode((string) $b->items, true) ?: []);
+        $activeBundles = $order(Bundle::where('active', true))->get();
+        // A pack is only published when every product in it is published (otherwise it would expose a hidden product).
+        $packProductIds = $activeBundles->flatMap(fn (Bundle $b) => array_map(fn ($it) => is_array($it) ? (string) ($it['id'] ?? '') : '', $bundleItems($b)))->filter()->unique()->values();
+        $publishedProducts = $packProductIds->isEmpty() ? [] : array_flip(Product::where('active', true)->whereIn('id', $packProductIds->all())->pluck('id')->map(fn ($id) => (string) $id)->all());
+        $bundles = $activeBundles->filter(function (Bundle $b) use ($bundleItems, $publishedProducts) {
+            foreach ($bundleItems($b) as $it) {
+                $id = is_array($it) ? (string) ($it['id'] ?? '') : '';
+                if ($id !== '' && ! isset($publishedProducts[$id])) {
+                    return false;
+                }
+            }
+
+            return true;
+        })->values()->map(function (Bundle $b) use ($show, $bundleItems) {
+            $items = $bundleItems($b);
 
             return [
                 'slug' => (string) $b->slug, 'title' => (string) $b->title, 'description' => (string) ($b->description ?? ''), 'image' => $b->image ?: null,

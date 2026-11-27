@@ -47,6 +47,28 @@ class OrderResource extends OwnerResource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Ventes';
 
+    protected static ?int $navigationSort = 12;
+
+    protected static ?string $recordTitleAttribute = 'reference';
+
+    /** Orders with a payment proof waiting for finance. */
+    public static function getNavigationBadge(): ?string
+    {
+        $n = CustomerOrder::whereIn('id', Payment::where('status', PaymentStatus::PendingVerification->value)->select('customer_order_id'))->count();
+
+        return $n > 0 ? (string) $n : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Commandes avec un justificatif de paiement à vérifier';
+    }
+
     public static function canCreate(): bool
     {
         return false;
@@ -74,7 +96,7 @@ class OrderResource extends OwnerResource
         return $schema->components([Tabs::make('commande')->tabs([
             Tab::make('Commande')->schema([
                 TextEntry::make('reference')->label('Référence'),
-                TextEntry::make('status')->label('Statut')->formatStateUsing(fn ($state) => $state instanceof OrderStatus ? $state->label() : $state)->badge(),
+                TextEntry::make('status')->label('Statut')->formatStateUsing(fn ($state) => $state instanceof OrderStatus ? $state->label() : $state)->badge()->color(fn ($state) => static::statusColor($state)),
                 TextEntry::make('client_name')->label('Client'),
                 TextEntry::make('city')->label('Ville'),
                 TextEntry::make('version_number')->label('Version du devis acceptée'),
@@ -90,6 +112,18 @@ class OrderResource extends OwnerResource
                 TextEntry::make('history_html')->hiddenLabel()->state(fn ($record) => static::historyHtml($record))->html()->columnSpanFull(),
             ]),
         ])->columnSpanFull()]);
+    }
+
+    public static function statusColor(mixed $state): string
+    {
+        return match ($state instanceof OrderStatus ? $state : OrderStatus::tryFrom((string) $state)) {
+            OrderStatus::AwaitingPayment, OrderStatus::PartiallyPaid => 'warning',
+            OrderStatus::PaymentConfirmed, OrderStatus::Processing, OrderStatus::Preparing => 'info',
+            OrderStatus::ReadyForPickup, OrderStatus::InDelivery => 'primary',
+            OrderStatus::Delivered, OrderStatus::Completed => 'success',
+            OrderStatus::Cancelled => 'danger',
+            default => 'gray',
+        };
     }
 
     public static function linesHtml(CustomerOrder $o): HtmlString
@@ -132,9 +166,10 @@ class OrderResource extends OwnerResource
         return $table->columns([
             TextColumn::make('reference')->label('Référence')->searchable()->sortable(),
             TextColumn::make('client_name')->label('Client')->searchable(),
+            TextColumn::make('city')->label('Ville')->searchable()->toggleable(),
             TextColumn::make('version_number')->label('Devis'),
             TextColumn::make('total_ttc')->label('Total')->suffix(' DH TTC'),
-            TextColumn::make('status')->label('Statut')->badge()->formatStateUsing(fn ($state) => $state instanceof OrderStatus ? $state->label() : $state),
+            TextColumn::make('status')->label('Statut')->badge()->formatStateUsing(fn ($state) => $state instanceof OrderStatus ? $state->label() : $state)->color(fn ($state) => static::statusColor($state)),
             TextColumn::make('fulfilment')->label('Mode')->formatStateUsing(fn ($state) => $state === 'retrait' ? 'Retrait' : 'Livraison'),
             TextColumn::make('created_at')->label('Créée le')->dateTime('d/m/Y H:i', 'Africa/Casablanca')->sortable(),
         ])->defaultSort('created_at', 'desc')
@@ -151,8 +186,13 @@ class OrderResource extends OwnerResource
     /** @return list<Action> */
     public static function baseActions(): array
     {
+        return [ViewAction::make()->label('Ouvrir'), ...static::statusActions()];
+    }
+
+    /** @return list<Action> */
+    public static function statusActions(): array
+    {
         return [
-            ViewAction::make()->label('Ouvrir'),
             Action::make('changerStatut')->label('Changer le statut')
                 ->visible(fn () => OrderStatus::allowedFor(static::user()) !== [])
                 ->schema([
@@ -247,6 +287,9 @@ class OrderResource extends OwnerResource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageCustomerOrders::route('/')];
+        return [
+            'index' => Pages\ListCustomerOrders::route('/'),
+            'view' => Pages\ViewCustomerOrder::route('/{record}'),
+        ];
     }
 }

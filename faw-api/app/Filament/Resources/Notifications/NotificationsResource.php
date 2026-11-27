@@ -18,8 +18,12 @@ class NotificationsResource extends SystemConfigResource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Communication';
 
+    /** Singleton: /admin/notifications opens the configuration row directly (no list). */
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageNotifications::route('/')];
+        return [
+            'index' => Pages\EditNotifications::route('/'),
+            'edit' => Pages\EditNotifications::route('/{record}/edit'),
+        ];
     }
 }
