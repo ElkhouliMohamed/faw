@@ -60,6 +60,21 @@ class MenuResource extends OwnerResource
                         Toggle::make('newTab')->label('Nouvel onglet')->inline(false),
                         Toggle::make('highlight')->label('Mettre en avant (bouton)')->inline(false)
                             ->helperText('En-tête : affiché comme bouton.'),
+                        Repeater::make('children')->label('Sous-liens (menu déroulant ▾ de l’en-tête, facultatif)')->schema([
+                            TextInput::make('label')->label('Libellé')->required()->maxLength(60),
+                            TextInput::make('label_ar')->label('Libellé (arabe)')->maxLength(60)->extraInputAttributes(['dir' => 'rtl']),
+                            TextInput::make('url')->label('Lien')->required()->maxLength(500)->regex(SiteMenu::LINK)->placeholder('/produits/portes-coupe-feu'),
+                            Toggle::make('newTab')->label('Nouvel onglet')->inline(false),
+                        ])
+                            ->columns(['default' => 1, 'md' => 2, 'xl' => 4])
+                            ->reorderable()
+                            ->collapsible()
+                            ->collapsed()
+                            ->maxItems(SiteMenu::MAX_ITEMS)
+                            ->defaultItems(0)
+                            ->itemLabel(fn (array $state): ?string => filled($state['label'] ?? null) ? $state['label'].'  →  '.($state['url'] ?? '') : null)
+                            ->addActionLabel('Ajouter un sous-lien')
+                            ->columnSpanFull(),
                     ])
                         ->columns(['default' => 1, 'md' => 2, 'xl' => 5])
                         ->reorderable()

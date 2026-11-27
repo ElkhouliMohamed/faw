@@ -28,6 +28,7 @@ Turn faw.ma (B2B aluminium, fire doors, automation — Casablanca, Morocco) from
 | 4 | FR/AR i18n with RTL; translatable content in Filament | ✅ done | `7cd8ab3` |
 | 5 | Local SEO Casablanca/Morocco; Google Tag Manager; Meta Pixel | ✅ done | `8674893` |
 | 6 | Claude-powered AI helper in Filament (products, blog posts) | ✅ done | `b75ac03` |
+| 7 | Home page redesign from the client mockup, 100% editable in Filament (FR/AR) | ✅ done | see `git log` ("Phase 7") |
 
 Update this table (status + commit hash) at the end of every phase.
 
@@ -123,7 +124,7 @@ docker run --rm --network faw_default \
 - Calls the Claude API from Laravel (server side only) with `ANTHROPIC_API_KEY` in `.env` (never in code or the browser). Use the current Claude model IDs from Anthropic's docs. Show a preview; the admin accepts/edits before saving. Log usage, rate-limit per user, handle errors and a missing key gracefully (button hidden or disabled with a message).
 - Tests with the HTTP client faked (no real API calls in tests).
 
-### Phase 7 — home page redesign from the client mockup (in progress)
+### Phase 7 — home page redesign from the client mockup (done)
 
 Target: `docs/design/home-mockup.jpg`. The home page must look like the mockup and be **100% editable in Filament** (texts, images, icons, links, items, order, visibility — FR and AR).
 

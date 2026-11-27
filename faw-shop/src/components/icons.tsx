@@ -6,7 +6,8 @@ export function WhatsAppIcon({ className = "size-5" }: { className?: string }) {
   );
 }
 
-export function SocialIcon({k,className="size-[18px]"}:{k:"instagram"|"linkedin"|"facebook";className?:string}){
+export function SocialIcon({k,className="size-[18px]"}:{k:"instagram"|"linkedin"|"facebook"|"youtube";className?:string}){
+ if(k==="youtube")return <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8ZM9.6 15.6V8.4l6.2 3.6-6.2 3.6Z"/></svg>;
  if(k==="instagram")return <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>;
  return <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>{k==="facebook"?<path d="M14 22v-9h3l.5-4H14V6.5c0-1.1.3-1.8 1.8-1.8H18V1.2C17.6 1.1 16.3 1 14.8 1 11.6 1 9.5 2.9 9.5 6.3V9H6v4h3.5v9Z"/>:<path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9.75h4v11H3v-11Zm6.5 0h3.8v1.5h.06c.53-.95 1.83-1.95 3.77-1.95 4.03 0 4.77 2.5 4.77 5.76v5.69h-4v-5.04c0-1.2-.02-2.75-1.73-2.75-1.73 0-2.67 1.3-2.67 2.66v5.13h-4v-11Z"/>}</svg>;
 }

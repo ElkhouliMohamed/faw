@@ -53,6 +53,7 @@ class StorefrontCacheServiceProvider extends ServiceProvider
         'shop' => StorefrontCache::TAGS,
         'theme' => ['site', 'config'],
         'social' => ['site', 'config'],
+        'layout' => ['site'],
         'seo' => ['config'],
         'integrations' => ['config'],
     ];

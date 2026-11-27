@@ -9,6 +9,8 @@ use App\Models\Setting;
 use App\Models\SiteMenu;
 use App\Models\SystemConfig;
 use App\Services\HomeSections;
+use App\Services\HomeTemplate;
+use App\Services\SiteLayout;
 use App\Services\PriceVisibility;
 use Illuminate\Http\Request;
 
@@ -81,11 +83,11 @@ class ContentController extends Controller
         $whatsapp = $match($social['whatsappNumber'] ?? null, '/^\d{8,20}$/');
         $email = filter_var($social['email'] ?? null, FILTER_VALIDATE_EMAIL) ?: (filter_var($settings['email'] ?? null, FILTER_VALIDATE_EMAIL) ?: null);
 
+        $loc = \App\Support\LocaleHelper::current();
         $menus = [];
         foreach (array_keys(SiteMenu::LOCATIONS) as $location) {
             $menus[$location] = null;
         }
-        $loc = \App\Support\LocaleHelper::current();
         foreach (SiteMenu::where('active', true)->get() as $menu) {
             try {
                 $items = SiteMenu::normalizeItems($menu->items);
@@ -95,7 +97,7 @@ class ContentController extends Controller
             if ($items !== []) {
                 $menus[$menu->location] = [
                     'title' => $this->clean((string) \App\Support\LocaleHelper::trans($menu->title_ar, (string) $menu->title, $loc)),
-                    'items' => array_map(fn ($i) => ['label' => $this->clean((string) \App\Support\LocaleHelper::trans($i['label_ar'] ?? null, $i['label'], $loc))] + $i, $items),
+                    'items' => array_map(fn ($i) => $this->menuItem($i, $loc), $items),
                 ];
             }
         }
@@ -105,9 +107,9 @@ class ContentController extends Controller
                 'phone' => $phone,
                 'whatsappNumber' => $whatsapp,
                 'email' => $email,
-                'address' => $text($social['address'] ?? null) ?? $text($settings['office_address'] ?? null),
+                'address' => ($loc === 'ar' ? $text($social['address_ar'] ?? null) : null) ?? $text($social['address'] ?? null) ?? $text($settings['office_address'] ?? null),
                 'depotAddress' => $text($social['depotAddress'] ?? null) ?? $text($settings['depot_address'] ?? null),
-                'hours' => $text($social['hours'] ?? null),
+                'hours' => ($loc === 'ar' ? $text($social['hours_ar'] ?? null) : null) ?? $text($social['hours'] ?? null),
                 'mapsUrl' => $match($social['mapsUrl'] ?? null, '#^https://[^<>\s"\\\\]+$#'),
                 'wazeUrl' => $match($social['wazeUrl'] ?? null, '#^https://[^<>\s"\\\\]+$#'),
             ],
@@ -115,6 +117,7 @@ class ContentController extends Controller
                 'instagram' => $match($social['instagram'] ?? null, '#^https://(?:www\.)?instagram\.com/[^<>\s"\\\\]*$#i'),
                 'linkedin' => $match($social['linkedin'] ?? null, '#^https://(?:[a-z]{2,3}\.)?linkedin\.com/[^<>\s"\\\\]*$#i'),
                 'facebook' => $match($social['facebook'] ?? null, '#^https://(?:www\.)?facebook\.com/[^<>\s"\\\\]*$#i'),
+                'youtube' => $match($social['youtube'] ?? null, '#^https://(?:www\.|m\.)?youtube\.com/[^<>\s"\\\\]*$#i'),
             ],
             'theme' => [
                 'primaryColor' => $match($theme['primaryColor'] ?? null, '/^#[0-9a-fA-F]{6}$/'),
@@ -122,17 +125,47 @@ class ContentController extends Controller
                 'logoDark' => $match($theme['logoDark'] ?? null, $image),
             ],
             'menus' => $menus,
+            'layout' => $this->cleanArray(SiteLayout::public(SystemConfig::settings('layout'), $loc)),
         ])->header('Cache-Control', 'no-store');
+    }
+
+    /** Menu link in the requested language (French fallback), sub-links included. */
+    protected function menuItem(array $item, string $loc): array
+    {
+        $out = ['label' => $this->clean((string) \App\Support\LocaleHelper::trans($item['label_ar'] ?? null, $item['label'], $loc))] + $item;
+        if (! empty($item['children'])) {
+            $out['children'] = array_map(fn ($c) => $this->menuItem($c, $loc), $item['children']);
+        }
+
+        return $out;
+    }
+
+    /** Every string of a nested array through clean() (prices masked when hidden). */
+    protected function cleanArray(array $data): array
+    {
+        foreach ($data as $k => $v) {
+            $data[$k] = is_string($v) ? $this->clean($v) : (is_array($v) ? $this->cleanArray($v) : $v);
+        }
+
+        return $data;
     }
 
     /** {home: sections of the published home record} or {home: null}: the storefront then renders its default home. */
     public function home()
     {
         $page = $this->published()->where('kind', 'home')->orderBy('id')->first();
-        if (! $page) {
-            return response()->json(['home' => null])->header('Cache-Control', 'no-store');
-        }
         $loc = \App\Support\LocaleHelper::current();
+        if (! $page) {
+            // No published home yet: the client's model (HomeTemplate), so the site looks finished out of the box.
+            $sections = HomeSections::public(HomeTemplate::sections(), $loc);
+
+            return response()->json(['home' => [
+                'title' => $loc === 'ar' ? 'الرئيسية' : 'Accueil', 'excerpt' => null, 'image' => null, 'ctaLabel' => null, 'ctaUrl' => null,
+                'seoTitle' => null, 'seoDescription' => null, 'legacy' => false, 'defaultSections' => false, 'template' => true,
+                'sections' => PriceVisibility::showOnSite() ? $sections : $this->sanitizeBlocks($sections),
+                'updatedAt' => null,
+            ]])->header('Cache-Control', 'no-store');
+        }
         $sections = HomeSections::public($page->getAttributes()['blocks'] ?? '[]', $loc);
         $show = PriceVisibility::showOnSite();
 

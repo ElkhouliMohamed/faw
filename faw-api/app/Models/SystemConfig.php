@@ -46,6 +46,10 @@ return $v;
         if ($this->name === 'shop') {
             $fields = self::cleanShopFields($fields);
         }
+        if ($this->name === 'layout') {
+            // Header / footer texts: icons from the whitelist, safe links, length limits (throws ValidationException).
+            $fields = \App\Services\SiteLayout::normalize(array_replace(\App\Services\SiteLayout::defaults(), $before, $fields));
+        }
         $this->value = array_replace($before, $fields);
         $this->save();
     }

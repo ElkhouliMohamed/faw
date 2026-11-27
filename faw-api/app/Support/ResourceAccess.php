@@ -38,6 +38,7 @@ use App\Filament\Resources\Settings\SettingResource;
 use App\Filament\Resources\ShippingCitys\ShippingCityResource;
 use App\Filament\Resources\ShopOrders\ShopOrderResource;
 use App\Filament\Resources\ShopSettings\ShopSettingsResource;
+use App\Filament\Resources\SiteLayouts\SiteLayoutResource;
 use App\Filament\Resources\Socials\SocialsResource;
 use App\Filament\Resources\TeamInbox\TeamInboxResource;
 use App\Filament\Resources\Technologies\TechnologiesResource;
@@ -71,7 +72,7 @@ final class ResourceAccess
             MediaResource::class => self::box(['view.media'], ['write.media']),
             PromotionResource::class, CouponResource::class => self::box(['view.marketing'], ['write.marketing']),
             ShippingCityResource::class, FeeRuleResource::class => self::box(['view.shipping'], ['write.shipping']),
-            RedirectResource::class, LandingPageResource::class, PopupResource::class, BlogCategoriesResource::class, BlogTagsResource::class, BlogPostsResource::class, HomepagesResource::class, MenuResource::class, ContentPagesResource::class, SeoSettingsResource::class, SocialsResource::class => self::box(['view.content'], ['write.content']),
+            RedirectResource::class, LandingPageResource::class, PopupResource::class, BlogCategoriesResource::class, BlogTagsResource::class, BlogPostsResource::class, HomepagesResource::class, MenuResource::class, ContentPagesResource::class, SeoSettingsResource::class, SocialsResource::class, SiteLayoutResource::class => self::box(['view.content'], ['write.content']),
             TechnologiesResource::class => self::box(['view.content', 'view.catalogue'], ['write.content', 'write.catalogue']),
             SettingResource::class => self::box(['view.settings'], ['write.settings']),
             CmiResource::class => self::box(['view.finance', 'view.system'], ['write.system']),

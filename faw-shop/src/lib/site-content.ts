@@ -15,18 +15,40 @@ const optLink = z.string().optional().transform((v) => (v && LINK.test(v) ? v : 
 const optImage = z.string().optional().transform((v) => (v && IMAGE.test(v) ? v : ""));
 const text = z.string().optional().transform((v) => v ?? "");
 
+const childSchema = z.object({ label: z.string().min(1), url: link, newTab: z.boolean().optional().default(false) });
 const menuSchema = z
-  .object({ title: z.string(), items: z.array(z.object({ label: z.string().min(1), url: link, newTab: z.boolean(), highlight: z.boolean() })) })
+  .object({
+    title: z.string(),
+    items: z.array(z.object({ label: z.string().min(1), url: link, newTab: z.boolean(), highlight: z.boolean(), children: z.array(childSchema).optional() })),
+  })
   .nullable();
-export type MenuItem = { label: string; url: string; newTab?: boolean; highlight?: boolean };
+export type MenuChild = { label: string; url: string; newTab?: boolean };
+export type MenuItem = { label: string; url: string; newTab?: boolean; highlight?: boolean; children?: MenuChild[] };
 export type Menu = { title: string; items: MenuItem[] };
+
+/** En-tête et pied de page (Filament : Contenu › En-tête & pied de page). Textes déjà dans la langue demandée. */
+const layoutSchema = z.object({
+  topbarEnabled: z.boolean(),
+  topbar: z.array(z.object({ icon: text, text: z.string(), url: optLink })),
+  headerCtaEnabled: z.boolean(),
+  headerCtaIcon: text,
+  headerCtaLabel: text,
+  headerCtaUrl: optLink,
+  headerCtaShowPhone: z.boolean(),
+  footerText: text,
+  footerContactTitle: text,
+  copyright: text,
+});
+export type SiteLayout = z.infer<typeof layoutSchema>;
 
 const siteSchema = z.object({
   contact: z.object({ phone: str, whatsappNumber: str, email: str, address: str, depotAddress: str, hours: str, mapsUrl: str, wazeUrl: str }),
-  socials: z.object({ instagram: str, linkedin: str, facebook: str }),
+  socials: z.object({ instagram: str, linkedin: str, facebook: str, youtube: str }),
   theme: z.object({ primaryColor: str, logo: str, logoDark: str }),
   menus: z.object({ header: menuSchema, footer_shop: menuSchema, footer_info: menuSchema, footer_legal: menuSchema }),
+  layout: layoutSchema.nullable().optional(),
 });
+export type SocialKey = "instagram" | "linkedin" | "facebook" | "youtube";
 
 export type Contact = {
   phone: string;
@@ -42,9 +64,11 @@ export type Contact = {
 };
 export type SiteContent = {
   contact: Contact;
-  socials: { key: "instagram" | "linkedin" | "facebook"; url: string }[];
+  socials: { key: SocialKey; url: string }[];
   theme: { primaryColor: string | null; logo: string | null; logoDark: string | null };
   menus: { header: Menu | null; footerShop: Menu | null; footerInfo: Menu | null; footerLegal: Menu | null };
+  /** null : API injoignable, le layout utilise ses textes par défaut (dictionnaire). */
+  layout: SiteLayout | null;
 };
 
 /** « 212660121813 » -> « +212 660 121 813 » (affichage), lien wa.me sans espaces. */
@@ -85,7 +109,7 @@ export const siteContent = cache(async function siteContent(): Promise<SiteConte
   };
   // Repli : NEXT_PUBLIC_INSTAGRAM_URL / NEXT_PUBLIC_LINKEDIN_URL (comportement précédent), jamais d'URL devinée.
   const envSocials = socialLinks();
-  const socials = (["instagram", "linkedin", "facebook"] as const).flatMap((key) => {
+  const socials = (["linkedin", "instagram", "youtube", "facebook"] as const).flatMap((key) => {
     const url = d?.socials[key] ?? envSocials.find((s) => s.key === key)?.url ?? null;
     return url ? [{ key, url }] : [];
   });
@@ -99,6 +123,7 @@ export const siteContent = cache(async function siteContent(): Promise<SiteConte
       footerInfo: d?.menus.footer_info ?? null,
       footerLegal: d?.menus.footer_legal ?? null,
     },
+    layout: d?.layout ?? null,
   };
 });
 
@@ -109,20 +134,50 @@ export function waHref(contact: Pick<Contact, "whatsappNumber">, message?: strin
 
 /* ------------------------------ Accueil ------------------------------ */
 
+const icon = text;
+const list = <T extends z.ZodTypeAny>(item: T) => z.array(item).optional().default([]);
+const slideSchema = z.object({
+  eyebrow: text, title: z.string().min(1), subtitle: text, image: optImage, imageAlt: text, imageWhole: z.boolean().optional().default(false),
+  primaryLabel: text, primaryUrl: optLink, secondaryLabel: text, secondaryUrl: optLink, secondaryWhatsapp: z.boolean().optional().default(false),
+  highlightIcon: icon, highlights: list(z.object({ text: z.string() })),
+  badges: list(z.object({ icon, line1: z.string(), line2: text })),
+});
+export type HeroSlide = z.infer<typeof slideSchema>;
+
 const sectionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("heroSlider"), autoplay: z.boolean().optional().default(true), interval: z.number().int().min(3).max(15).optional().default(6), slides: z.array(slideSchema).min(1) }),
+  z.object({ type: z.literal("features"), title: text, items: list(z.object({ icon, title: z.string(), text: text })) }),
+  z.object({
+    type: z.literal("products"), anchor: text, eyebrow: text, title: text, subtitle: text, ids: z.array(z.string()).optional().default([]),
+    linkLabel: text, linkUrl: optLink, category: text, count: z.number().int().min(1).max(12).optional().default(3),
+    cards: list(z.object({ image: optImage, imageAlt: text, title: z.string(), text: text, url: optLink })),
+  }),
+  z.object({ type: z.literal("sectors"), anchor: text, eyebrow: text, title: text, text: text, items: list(z.object({ icon, label: z.string(), url: optLink })) }),
+  z.object({
+    type: z.literal("about"), anchor: text, image: optImage, imageAlt: text, eyebrow: text, title: text, text: text,
+    checklist: list(z.object({ text: z.string() })), buttonLabel: text, buttonUrl: optLink,
+  }),
+  z.object({ type: z.literal("highlights"), title: z.string(), backgroundImage: optImage, items: list(z.object({ icon, label: z.string() })) }),
+  z.object({
+    type: z.literal("projects"), anchor: text, eyebrow: text, title: text, linkLabel: text, linkUrl: optLink,
+    items: list(z.object({ image: optImage, title: z.string(), location: text, url: optLink })),
+  }),
+  z.object({ type: z.literal("process"), anchor: text, eyebrow: text, title: text, text: text, steps: list(z.object({ icon, title: z.string(), text: text })) }),
   z.object({
     type: z.literal("hero"), eyebrow: text, title: z.string().min(1), subtitle: text, image: optImage, imageAlt: text,
     primaryLabel: text, primaryUrl: optLink, secondaryLabel: text, secondaryUrl: optLink, showContact: z.boolean().optional().default(true),
   }),
   z.object({ type: z.literal("categories"), title: text, subtitle: text, slugs: z.array(z.string()).optional().default([]) }),
-  z.object({ type: z.literal("products"), title: text, subtitle: text, ids: z.array(z.string()).optional().default([]), linkLabel: text, linkUrl: optLink }),
-  z.object({ type: z.literal("usps"), title: text, subtitle: text, items: z.array(z.object({ icon: text, title: z.string(), text: text })).optional().default([]) }),
-  z.object({ type: z.literal("references"), title: text, subtitle: text, logos: z.array(z.object({ name: z.string(), image: optImage, url: optLink })).optional().default([]) }),
-  z.object({ type: z.literal("testimonials"), title: text, subtitle: text, items: z.array(z.object({ quote: z.string(), author: z.string(), role: text })).optional().default([]) }),
-  z.object({ type: z.literal("cta"), title: z.string(), text: text, label: z.string(), url: optLink, showWhatsapp: z.boolean().optional().default(true) }),
+  z.object({ type: z.literal("usps"), title: text, subtitle: text, items: list(z.object({ icon: text, title: z.string(), text: text })) }),
+  z.object({ type: z.literal("references"), title: text, subtitle: text, logos: list(z.object({ name: z.string(), image: optImage, url: optLink })) }),
+  z.object({ type: z.literal("testimonials"), title: text, subtitle: text, items: list(z.object({ quote: z.string(), author: z.string(), role: text })) }),
+  z.object({
+    type: z.literal("cta"), title: z.string(), text: text, label: text, url: optLink, showWhatsapp: z.boolean().optional().default(true),
+    showPhone: z.boolean().optional().default(false), phone: text, phoneLabel: text, whatsappNumber: text, whatsappLabel: text, backgroundImage: optImage,
+  }),
   z.object({ type: z.literal("blog"), title: text, count: z.number().int().min(1).max(6).optional().default(3) }),
   z.object({ type: z.literal("text"), title: text, body: z.string() }),
-  z.object({ type: z.literal("faq"), title: text, items: z.array(z.object({ q: z.string(), a: z.string() })).optional().default([]) }),
+  z.object({ type: z.literal("faq"), title: text, items: list(z.object({ q: z.string(), a: z.string() })) }),
 ]);
 export type HomeSection = z.infer<typeof sectionSchema>;
 export type HomeSectionOf<T extends HomeSection["type"]> = Extract<HomeSection, { type: T }>;
@@ -141,6 +196,7 @@ const homeSchema = z.object({
       defaultSections: z.boolean(),
       sections: z.array(z.unknown()),
       updatedAt: str,
+      template: z.boolean().optional().default(false),
     })
     .nullable(),
 });

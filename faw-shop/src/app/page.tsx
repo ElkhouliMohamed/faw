@@ -1,20 +1,19 @@
 import type { Metadata } from "next";
 import { Intro, introScript } from "@/components/intro";
 import { Blocks } from "@/components/blocks";
-import {
-  BlogSection,
-  CategoriesSection,
-  CtaSection,
-  HeroSection,
-  ProductsSection,
-  ReferencesSection,
-  TestimonialsSection,
-  UspsSection,
-  type CategoryTile,
-} from "@/components/home/sections";
+import { BlogSection, CategoriesSection, HeroSection, ReferencesSection, TestimonialsSection, UspsSection, type CategoryTile } from "@/components/home/sections";
+import { HeroSlider } from "@/components/home/hero-slider";
+import { FeaturesSection } from "@/components/home/features";
+import { ProductsShowcase } from "@/components/home/products-showcase";
+import { SectorsSection } from "@/components/home/sectors";
+import { AboutSection } from "@/components/home/about";
+import { HighlightsSection } from "@/components/home/highlights";
+import { ProjectsSection } from "@/components/home/projects";
+import { ProcessSection } from "@/components/home/process";
+import { ContactCtaSection } from "@/components/home/contact-cta";
 import { getDict } from "@/lib/i18n-server";
 import type { Dict } from "@/lib/i18n";
-import { CATEGORIES, categoryHref, toPublic } from "@/lib/products";
+import { CATEGORIES, categoryHref, categoryKey, toPublic } from "@/lib/products";
 import { alternates, nonce } from "@/lib/seo";
 import { homeContent, siteContent, waHref, type HomeContent, type HomeSection, type HomeSectionOf } from "@/lib/site-content";
 import { allProducts } from "@/lib/catalog";
@@ -60,19 +59,23 @@ function defaultSections(t: Dict): HomeSection[] {
     },
     { type: "categories", title: t.home.familiesTitle, subtitle: "", slugs: [] },
     { type: "usps", title: t.home.whyTitle, subtitle: "", items: t.home.reassure.map((title, i) => ({ icon: ["file", "warehouse", "badge"][i] ?? "badge", title, text: "" })) },
-    { type: "cta", title: t.home.b2bTitle, text: t.home.b2bText, label: t.home.ctaQuote, url: "/devis", showWhatsapp: true },
+    {
+      type: "cta", title: t.home.b2bTitle, text: t.home.b2bText, label: t.home.ctaQuote, url: "/devis", showWhatsapp: true,
+      showPhone: true, phone: "", phoneLabel: "", whatsappNumber: "", whatsappLabel: "", backgroundImage: "",
+    },
   ];
 }
 
 /**
- * Sections à afficher. Accueil publié : ses sections, précédées de la bannière par défaut (titre / sous-titre / bouton
+ * Sections à afficher. Sans accueil publié, Laravel renvoie le modèle du client (template) ; API injoignable : accueil minimal.
+ * Accueil publié : ses sections, précédées de la bannière par défaut (titre / sous-titre / bouton
  * de l'enregistrement) s'il n'en a pas. Ancien format (avant le constructeur de sections) : sections par défaut conservées.
  */
 function resolveSections(home: HomeContent | null, t: Dict): { sections: HomeSection[]; isDefault: boolean } {
   const defaults = defaultSections(t);
   if (!home) return { sections: defaults, isDefault: true };
   const sections = [...home.sections];
-  if (!sections.some((s) => s.type === "hero")) {
+  if (!sections.some((s) => s.type === "hero" || s.type === "heroSlider")) {
     const base = defaults[0] as HomeSectionOf<"hero">;
     const hero: HomeSectionOf<"hero"> = {
       ...base,
@@ -90,7 +93,7 @@ function resolveSections(home: HomeContent | null, t: Dict): { sections: HomeSec
 export default async function Home() {
   const [{ t, locale }, home, site, n] = await Promise.all([getDict(), homeContent(), siteContent(), nonce()]);
   const { sections, isDefault } = resolveSections(home, t);
-  const need = new Set(sections.map((s) => s.type));
+  const need = new Set<string>(sections.map((s) => s.type));
   const [showPrices, products, tree, posts] = await Promise.all([
     showPublicPrices(),
     need.has("products") ? allProducts().catch(() => []) : Promise.resolve([]),
@@ -110,15 +113,55 @@ export default async function Home() {
     return nodes.map((c) => ({ key: c.slug, label: c.label, href: c.path, image: c.image ?? staticImage(c.family) }));
   };
 
+  /** Produits du catalogue d'une section : choisis un par un, sinon les premiers d'une catégorie. */
+  const sectionProducts = (s: HomeSectionOf<"products">) => {
+    const byId = new Map(products.map((p) => [p.id, p]));
+    const picked = s.ids.length
+      ? s.ids.map((id) => byId.get(id)).filter((p) => !!p)
+      : s.category
+        ? products.filter((p) => p.active && (p.catSlug === s.category || categoryKey(p) === s.category)).slice(0, s.count)
+        : [];
+    return picked.map((p) => toPublic(p, showPrices));
+  };
+  const photoSoon = t.layout.photoSoon;
+  const waMessage = locale === "ar" ? "السلام عليكم، أريد عرض سعر." : "Bonjour FAW, je souhaite un devis.";
+
   let firstHero = true;
   return (
-    <>
+    <div data-home className="bg-paper pb-16 lg:pb-20">
       <HomeLinks />
       {/* intro : décidée avant le 1er rendu, calque fixe au-dessus du hero déjà rendu */}
       <script nonce={n} dangerouslySetInnerHTML={{ __html: introScript }} />
       <Intro />
       {sections.map((s, i) => {
         switch (s.type) {
+          case "heroSlider": {
+            const h1 = firstHero;
+            firstHero = false;
+            return (
+              <HeroSlider
+                key={i}
+                slides={s.slides}
+                autoplay={s.autoplay}
+                interval={s.interval}
+                whatsappHref={contact.whatsappHref}
+                h1={h1}
+                labels={{ region: t.layout.slider, slide: t.layout.slide, of: t.layout.of, pause: t.layout.pause, play: t.layout.play, goTo: t.layout.goTo, photoSoon }}
+              />
+            );
+          }
+          case "features":
+            return <FeaturesSection key={i} s={s} index={i} overlap={i > 0 && (sections[i - 1].type === "heroSlider" || sections[i - 1].type === "hero")} />;
+          case "sectors":
+            return <SectorsSection key={i} s={s} index={i} />;
+          case "about":
+            return <AboutSection key={i} s={s} index={i} photoSoon={photoSoon} />;
+          case "highlights":
+            return <HighlightsSection key={i} s={s} index={i} />;
+          case "projects":
+            return <ProjectsSection key={i} s={s} index={i} />;
+          case "process":
+            return <ProcessSection key={i} s={s} index={i} />;
           case "hero": {
             const h1 = firstHero;
             firstHero = false;
@@ -126,11 +169,8 @@ export default async function Home() {
           }
           case "categories":
             return <CategoriesSection key={i} s={s} items={categoryTiles(s)} index={i} />;
-          case "products": {
-            const byId = new Map(products.map((p) => [p.id, p]));
-            const list = s.ids.map((id) => byId.get(id)).filter((p) => !!p).map((p) => toPublic(p, showPrices));
-            return <ProductsSection key={i} s={s} products={list} catLabel={(p) => t.cats[p.cat]} noImage={t.product.noImage} index={i} />;
-          }
+          case "products":
+            return <ProductsShowcase key={i} s={s} products={sectionProducts(s)} catLabel={(p) => t.cats[p.cat]} index={i} photoSoon={photoSoon} />;
           case "usps":
             return <UspsSection key={i} s={s} index={i} />;
           case "references":
@@ -138,7 +178,7 @@ export default async function Home() {
           case "testimonials":
             return <TestimonialsSection key={i} s={s} index={i} />;
           case "cta":
-            return <CtaSection key={i} s={s} whatsappHref={contact.whatsappHref} whatsappLabel={t.home.ctaWa} index={i} />;
+            return <ContactCtaSection key={i} s={s} contact={contact} waMessage={waMessage} index={i} />;
           case "blog":
             return <BlogSection key={i} s={s} posts={posts.data} readLabel={locale === "ar" ? "اقرأ" : "Lire l’article"} allLabel={locale === "ar" ? "كل المقالات" : "Tous les articles"} index={i} />;
           case "text":
@@ -147,6 +187,6 @@ export default async function Home() {
             return s.items.length ? <Blocks key={i} blocks={[{ type: "faq", title: s.title || undefined, items: s.items }]} products={[]} hasH1 showPrices={showPrices} /> : null;
         }
       })}
-    </>
+    </div>
   );
 }

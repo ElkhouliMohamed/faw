@@ -1,12 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, Building2, Clock, FileText, Flame, Phone, ShieldCheck, Truck, Warehouse, Wrench } from "lucide-react";
+import { ArrowRight, FileText, Phone } from "lucide-react";
 import { WhatsAppIcon } from "@/components/icons";
 import { ProductCard } from "@/components/product-card";
 import type { HomeSectionOf } from "@/lib/site-content";
 import type { PublicProduct } from "@/lib/products";
 import type { ContentPage } from "@/lib/content";
 import { cn } from "@/lib/utils";
+import { HomeIcon } from "./icon";
 
 // Sections de l'accueil (composants serveur, aucun JS client). Données : Filament (Accueil) ou accueil par défaut.
 // Les textes viennent des sections ; seuls les libellés d'interface (aria, « Lire ») sont ici.
@@ -163,8 +164,6 @@ export function ProductsSection({ s, products, catLabel, noImage, index }: { s: 
 
 /* ------------------------------ Pourquoi FAW ------------------------------ */
 
-const ICONS = { truck: Truck, warehouse: Warehouse, shield: ShieldCheck, flame: Flame, badge: BadgeCheck, file: FileText, clock: Clock, wrench: Wrench, building: Building2, phone: Phone } as const;
-
 export function UspsSection({ s, index }: { s: HomeSectionOf<"usps">; index: number }) {
   if (!s.items.length) return null;
   const id = `home-usps-${index}`;
@@ -173,11 +172,10 @@ export function UspsSection({ s, index }: { s: HomeSectionOf<"usps">; index: num
       <SectionHead id={id} title={s.title} subtitle={s.subtitle} />
       <ul className={cn("hairline mt-6 grid gap-6 pt-8 sm:grid-cols-2", s.items.length % 3 === 0 ? "lg:grid-cols-3" : "lg:grid-cols-4")}>
         {s.items.map((item, i) => {
-          const Icon = ICONS[item.icon as keyof typeof ICONS] ?? BadgeCheck;
           return (
             <li key={i} className="flex gap-4">
               <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-accent text-copper" aria-hidden>
-                <Icon className="size-5" />
+                <HomeIcon name={item.icon} className="size-5" strokeWidth={2} fallback="badge-check" />
               </span>
               <div className="min-w-0">
                 <h3 className="text-[1.0625rem] font-semibold leading-snug">{item.title}</h3>
@@ -246,33 +244,6 @@ export function TestimonialsSection({ s, index }: { s: HomeSectionOf<"testimonia
           </li>
         ))}
       </ul>
-    </section>
-  );
-}
-
-/* ------------------------------ Appel à action ------------------------------ */
-
-export function CtaSection({ s, whatsappHref, whatsappLabel, index }: { s: HomeSectionOf<"cta">; whatsappHref: string; whatsappLabel: string; index: number }) {
-  return (
-    <section className={cn("shell pb-12 lg:pb-16", index > 1 && BELOW_FOLD)} data-section="cta">
-      <div className="rounded-lg bg-brand-deep p-6 text-brand-deep-fg sm:p-10 lg:flex lg:items-center lg:justify-between lg:gap-10">
-        <div className="max-w-2xl">
-          <h2 className="text-d3 font-semibold">{s.title}</h2>
-          {s.text && <p className="mt-3 opacity-80">{s.text}</p>}
-        </div>
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row lg:mt-0 lg:shrink-0">
-          {s.url && (
-            <SmartLink href={s.url} className="btn btn-primary h-14 px-6 text-[1.0625rem]" testid="home-quote">
-              <FileText className="size-5" aria-hidden /> {s.label}
-            </SmartLink>
-          )}
-          {s.showWhatsapp && (
-            <a href={whatsappHref} target="_blank" rel="noopener" className="btn h-14 border border-brand-deep-fg/30 px-6 hover:border-brand-deep-fg">
-              <WhatsAppIcon className="size-5" /> {whatsappLabel}
-            </a>
-          )}
-        </div>
-      </div>
     </section>
   );
 }

@@ -24,6 +24,12 @@
   --color-rule: var(--rule);
   --color-price: var(--price);
   --color-brand-deep: var(--brand-deep);
+  --color-bark: var(--bark);
+  --color-bark-fg: var(--bark-fg);
+  --color-paper: var(--paper);
+  --color-fire: var(--fire);
+  --color-wa: var(--wa);
+  --shadow-soft: var(--shadow-soft);
   --color-brand-deep-fg: var(--brand-deep-fg);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -86,8 +92,15 @@
   --cream: #fffdfa;
   --sand: #f5f1eb;    /* surface « lin » (fonds d'images, blocs) */
   --rule: #ece4da;    /* filet 1 px */
-  --brand-deep: #432a13;
+  --brand-deep: #3a2416;
   --brand-deep-fg: #fbf3e8;
+  /* maquette accueil : bandeaux brun foncé, fond papier chaud, pastille rouge, bouton WhatsApp vert (texte blanc 4,6:1) */
+  --bark: #3a2416;
+  --bark-fg: #fbf3e8;
+  --paper: #faf6f1;
+  --fire: #c62828;
+  --wa: #138a43;
+  --shadow-soft: 0 1px 2px rgb(58 36 22 / 0.05), 0 10px 30px -12px rgb(58 36 22 / 0.16);
   --cta: #432a13;       /* brun du logo, 12,1:1 avec le crème */
   --cta-fg: #fbf3e8;
 
@@ -124,6 +137,12 @@
   --rule: #3a2a1c;
   --cream: #f7efe6;
   --brand-deep: #120b05;
+  --bark: #140c06;
+  --bark-fg: #f7efe6;
+  --paper: #1c120a;
+  --fire: #b71c1c;
+  --wa: #138a43;
+  --shadow-soft: 0 1px 2px rgb(10 6 3 / 0.3), 0 10px 30px -12px rgb(10 6 3 / 0.5);
   --brand-deep-fg: #f7efe6;
   --cta: #fbf3e8;       /* crème du logo, lisible sur le fond sombre */
   --cta-fg: #432a13;    /* 12,1:1 */

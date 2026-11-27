@@ -167,6 +167,6 @@ export async function middleware(req: NextRequest) {
 export const config = {
   runtime: "nodejs",
   matcher: [
-    "/((?!_next/static|_next/image|images/|media/|favicon|icon|apple-icon|og\\.jpg|robots\\.txt|sitemap\\.xml).*)",
+    "/((?!_next/static|_next/image|images/|brand/|media/|favicon|icon|apple-icon|og\\.jpg|robots\\.txt|sitemap\\.xml).*)",
   ],
 };

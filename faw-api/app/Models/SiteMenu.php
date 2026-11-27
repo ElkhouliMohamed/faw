@@ -43,8 +43,12 @@ class SiteMenu extends ShopModel
         });
     }
 
-    /** @return list<array{label: string, url: string, newTab: bool, highlight: bool}> */
-    public static function normalizeItems(mixed $raw): array
+    /**
+     * Items in display order. A header item may hold one level of sub-links ("children", shown as a dropdown).
+     *
+     * @return list<array{label: string, url: string, newTab: bool, highlight: bool, children?: list<array<string, mixed>>}>
+     */
+    public static function normalizeItems(mixed $raw, bool $nested = false): array
     {
         $items = is_string($raw) ? json_decode($raw, true) : $raw;
         if (! is_array($items)) {
@@ -70,7 +74,14 @@ class SiteMenu extends ShopModel
             ], [
                 'url.regex' => 'Lien interne commençant par /, adresse https://, tel: ou mailto:.',
             ])->validate();
-            $out[] = array_filter($row, fn ($val, $k) => $k !== 'label_ar' || ($val !== '' && $val !== null), ARRAY_FILTER_USE_BOTH);
+            $row = array_filter($row, fn ($val, $k) => $k !== 'label_ar' || ($val !== '' && $val !== null), ARRAY_FILTER_USE_BOTH);
+            if (! $nested && ! empty($item['children']) && is_array($item['children'])) {
+                $children = self::normalizeItems($item['children'], true);
+                if ($children !== []) {
+                    $row['children'] = $children;
+                }
+            }
+            $out[] = $row;
         }
 
         return $out;

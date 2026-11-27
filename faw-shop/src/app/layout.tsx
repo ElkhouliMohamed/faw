@@ -5,6 +5,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { TopBar } from "@/components/top-bar";
 import { AttributionCapture, PageTracker } from "@/components/tracking";
 import { ConsentBanner, ConsentedTracking } from "@/components/consent";
 import { FloatingWhatsApp } from "@/components/floating-wa";
@@ -19,7 +20,6 @@ import { toPublic } from "@/lib/products";
 import { issueFormToken } from "@/lib/security";
 import { ldJson, nonce, organizationLd } from "@/lib/seo";
 import { categoryTree } from "@/lib/category-tree";
-import { blogPosts } from "@/lib/content";
 import { siteContent, waHref } from "@/lib/site-content";
 
 const vietnam = Be_Vietnam_Pro({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-vietnam", display: "swap" });
@@ -69,14 +69,13 @@ function brandColorStyle(hex: string | null): React.CSSProperties | undefined {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Tous les appels en parallèle ; chacun est dédupliqué par React cache() et servi par le cache de données Next.
-  const [{ locale, t }, config, site, products, m, tree, posts, n] = await Promise.all([
+  const [{ locale, t }, config, site, products, m, tree, n] = await Promise.all([
     getDict(),
     publicConfig(),
     siteContent(),
     allProducts(),
     merch(),
     categoryTree(),
-    blogPosts(undefined, undefined, 1),
     nonce(),
   ]);
   const rawGtm = config?.integrations.gtmId || runtimeEnv("NEXT_PUBLIC_GTM_ID") || runtimeEnv("GTM_ID");
@@ -92,11 +91,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Popups actifs et en cours (filtrés et nettoyés par Laravel).
   const popups: PublicPopup[] = m.popups;
   const { contact } = site;
+  // Menu « En-tête » de Filament (Menus du site), sinon le menu de la maquette (Produits ▾ = catégories racines publiées).
   const headerLinks = site.menus.header?.items ?? [
-    { label: t.nav.shop, url: "/produits" },
-    { label: t.nav.delivery, url: "/livraison" },
+    { label: t.nav.home, url: "/" },
+    { label: t.layout.products, url: "/produits", children: footerCats.map((c) => ({ label: c.label, url: c.path })) },
+    { label: t.layout.solutions, url: "/#solutions" },
+    { label: t.layout.projects, url: "/#realisations" },
+    { label: t.layout.about, url: "/#a-propos" },
     { label: t.nav.contact, url: "/contact" },
   ];
+  // Bandeau du haut et bouton de l'en-tête : Filament (En-tête & pied de page) ; API injoignable : textes du dictionnaire.
+  const layout = site.layout;
+  const topBar = layout
+    ? layout.topbarEnabled ? layout.topbar : []
+    : t.layout.topbar.map((text, i) => ({ icon: ["truck", "shield-check", "headset"][i] ?? "check-circle", text, url: "" }));
+  const headerCta = layout
+    ? layout.headerCtaEnabled && layout.headerCtaLabel && layout.headerCtaUrl
+      ? { label: layout.headerCtaLabel, url: layout.headerCtaUrl, icon: layout.headerCtaIcon, showPhone: layout.headerCtaShowPhone }
+      : null
+    : { label: t.layout.headerCta, url: "/devis", icon: "file-text", showPhone: true };
   return (
     <html
       lang={locale}
@@ -115,14 +128,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <AttributionCapture />
           <PageTracker />
           <ConsentedTracking gtmId={gtmId} gaId={gaId} pixelId={pixelId} adsId={config?.integrations.adsEnabled ? config.integrations.adsId || undefined:undefined} adsLabel={config?.integrations.adsLabel || undefined} />
+          <TopBar items={topBar} />
           <Header
             links={headerLinks}
+            cta={headerCta}
             contact={{ phone: contact.phone, phoneHref: contact.phoneHref, whatsappHref: waHref(contact), whatsappDisplay: contact.whatsappDisplay, email: contact.email, hours: contact.hours }}
             logo={site.theme.logo}
             logoDark={site.theme.logoDark}
           />
-          <main id="contenu">{children}</main>
-          <Footer t={t} contact={contact} socials={site.socials} menus={site.menus} categories={footerCats} hasBlog={posts.data.length > 0} logoDark={site.theme.logoDark} />
+          {/* espace avant le pied de page, sauf l'accueil qui se termine par son propre bandeau */}
+          <main id="contenu" className="[&:not(:has(>[data-home]))]:pb-20 lg:[&:not(:has(>[data-home]))]:pb-28">{children}</main>
+          <Footer t={t} contact={contact} socials={site.socials} menus={site.menus} layout={site.layout} categories={footerCats} logoDark={site.theme.logoDark} />
           <FloatingWhatsApp config={config?.social} />
           <SiteBot />
           <ConsentBanner />
