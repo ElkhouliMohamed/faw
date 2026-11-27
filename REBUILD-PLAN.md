@@ -123,6 +123,17 @@ docker run --rm --network faw_default \
 - Calls the Claude API from Laravel (server side only) with `ANTHROPIC_API_KEY` in `.env` (never in code or the browser). Use the current Claude model IDs from Anthropic's docs. Show a preview; the admin accepts/edits before saving. Log usage, rate-limit per user, handle errors and a missing key gracefully (button hidden or disabled with a message).
 - Tests with the HTTP client faked (no real API calls in tests).
 
+### Phase 7 — home page redesign from the client mockup (in progress)
+
+Target: `docs/design/home-mockup.jpg`. The home page must look like the mockup and be **100% editable in Filament** (texts, images, icons, links, items, order, visibility — FR and AR).
+
+- Extend `faw-api/app/Services/HomeSections.php` (do not create a parallel system): `heroSlider` (slides with eyebrow, title, text, image, 2 buttons, 3 badges, EI60/90/120 highlight), `features` (4 icon items), `products` (+ eyebrow), `sectors`, `about` (image, checklist, button), `highlights` (dark band with background image), `projects` (réalisations photos), `process` (numbered steps), `cta` (+ phone and WhatsApp). Old stored JSON must keep rendering.
+- Icons from a curated lucide list (Select in Filament, whitelist validated server-side).
+- Site-level settings: top bar items, header CTA, footer (description, socials, link columns, contact lines, hours, legal links).
+- Filament: Builder blocks with French labels, image uploads, repeaters (reorder/collapse), per-section visibility; a seed/reset that reproduces the mockup texts.
+- Next.js: one component per section in `components/home/`, only the slider is a client component; mobile-first, RTL-correct, `next/image`.
+- Visual QA: Playwright screenshots of `/fr` (1440 and 390 px) and `/ar` compared with the mockup until they match.
+
 ## Needs the owner (not code)
 
 - `ANTHROPIC_API_KEY` (Phase 6), GTM container ID and Meta Pixel ID (Phase 5) — entered in the server `.env` / Filament, never in chat or git.
