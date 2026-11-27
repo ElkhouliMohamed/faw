@@ -19,14 +19,14 @@ export type PreviewState = { loading: boolean; data: PricedPreview | null; error
  * Récapitulatif du panier calculé par Laravel (prix, promotions, livraison, code promo, TVA, paiements).
  * Recalculé à chaque changement de lignes, de livraison ou de code promo (anti-rebond 250 ms).
  */
-export function useCartPreview(): PreviewState {
+export function useCartPreview(enabled = true): PreviewState {
   const { ready, lines, mode, coupon } = useCart();
   const { showPrices } = useShop();
   const [state, setState] = useState<PreviewState>({ loading: true, data: null, error: false });
   const seq = useRef(0);
   const key = JSON.stringify([lines, mode, coupon?.code ?? null]);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !enabled) return;
     if (!showPrices || !lines.length) {
       setState({ loading: false, data: null, error: false });
       return;
@@ -41,7 +41,7 @@ export function useCartPreview(): PreviewState {
     return () => clearTimeout(t);
     // key résume lignes + mode + code promo
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, showPrices, key]);
+  }, [ready, enabled, showPrices, key]);
   return state;
 }
 
@@ -106,50 +106,68 @@ export function ServerTotals({ preview, className }: { preview: PreviewState; cl
   );
 }
 
-/** Lignes du panier : quantité modifiable, suppression, prix serveur TTC + HT, alertes « sur devis » / quantité max. */
-export function CartLines({ preview }: { preview: PreviewState }) {
+/**
+ * Lignes du panier : quantité modifiable, suppression, prix serveur TTC + HT, alertes « sur devis » / quantité max.
+ * `compact` : version du panier latéral et du récapitulatif (vignette plus petite, sans référence).
+ */
+export function CartLines({ preview, compact = false, onNavigate }: { preview: PreviewState; compact?: boolean; onNavigate?: () => void }) {
   const { locale } = useT();
   const c = commerceDict(locale);
   const { rows, setQty, remove } = useCart();
   const byId = new Map((preview.data?.items ?? []).map((i) => [i.id, i]));
   return (
-    <ul className="divide-y divide-rule border-y border-rule" data-testid="cart-lines">
+    <ul className={cn(compact ? "space-y-3" : "divide-y divide-rule rounded-2xl border border-rule bg-card px-4 shadow-soft sm:px-6")} data-testid="cart-lines">
       {rows.map(({ product: p, qty }) => {
         const line = byId.get(p.id);
-        const unit = line?.unitTtc ?? (p.quoteOnly ? null : p.price ?? null);
-        const total = line?.totalTtc ?? (unit != null ? unit * qty : null);
+        // Article sur devis : jamais de prix, même si le serveur n'a pas encore répondu.
+        const unit = p.quoteOnly ? null : line?.unitTtc ?? p.price ?? null;
+        const total = p.quoteOnly ? null : line?.totalTtc ?? (unit != null ? unit * qty : null);
         const blocker = line?.blocker ?? (p.quoteOnly ? "quote_only" : p.maxOnlineQty && qty > p.maxOnlineQty ? "over_max" : null);
         const max = line?.maxOnlineQty ?? p.maxOnlineQty ?? null;
         return (
-          <li key={p.id} className="flex gap-4 py-6 sm:gap-6" data-testid="cart-line">
-            <Link href={itemHref(p)} className="relative h-28 w-22 shrink-0 overflow-hidden rounded-lg bg-sand sm:h-36 sm:w-28">
-              <ProductImage src={p.image} alt={p.title} sizes="96px" fit="cover" placeholderLabel="" />
+          <li key={p.id} className={cn("flex gap-3", compact ? "rounded-2xl border border-rule bg-card p-3" : "gap-4 py-5 sm:gap-6")} data-testid="cart-line">
+            <Link
+              href={itemHref(p)}
+              onClick={onNavigate}
+              className={cn("relative shrink-0 overflow-hidden rounded-xl bg-sand", compact ? "size-20" : "h-28 w-24 sm:h-32 sm:w-28")}
+              tabIndex={-1}
+              aria-hidden
+            >
+              <ProductImage src={p.image} alt="" sizes="112px" fit="cover" placeholderLabel="" />
             </Link>
             <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="eyebrow text-muted-foreground" dir="ltr">{p.id}</p>
-                  <Link href={itemHref(p)} className="mt-1 line-clamp-2 font-medium hover:text-copper" lang="fr" dir="auto">{p.title}</Link>
-                  {p.variantLabel && <p className="mt-1 text-xs text-muted-foreground">{p.variantLabel}</p>}
-                  {unit != null && (
-                    <p className="mt-1 text-xs text-muted-foreground tnum" dir="ltr">
-                      {formatMAD(unit)} TTC · {formatMAD(line?.unitHt ?? htOf(unit))} HT
-                    </p>
-                  )}
+                  {!compact && <p className="eyebrow text-muted-foreground" dir="ltr">{p.id}</p>}
+                  <Link href={itemHref(p)} onClick={onNavigate} className={cn("line-clamp-2 font-semibold leading-snug hover:text-copper", compact ? "text-sm" : "mt-1")} lang="fr" dir="auto">
+                    {p.title}
+                  </Link>
+                  {p.variantLabel && <p className="mt-0.5 text-xs text-muted-foreground" lang="fr" dir="auto">{p.variantLabel}</p>}
+                  <p className="mt-0.5 text-xs text-muted-foreground tnum" data-testid={`unit-${p.id}`}>
+                    {unit != null ? <bdi dir="ltr">{compact ? `${formatMAD(unit)} TTC` : `${formatMAD(unit)} TTC · ${formatMAD(line?.unitHt ?? htOf(unit))} HT`}</bdi> : c.price.onQuote}
+                  </p>
                 </div>
-                <button type="button" onClick={() => remove(p.id)} aria-label={`${c.cart.remove} ${p.title}`} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive" data-testid={`remove-${p.id}`}>
+                <button
+                  type="button"
+                  onClick={() => remove(p.id)}
+                  aria-label={`${c.cart.remove} ${p.title}`}
+                  className="-me-1 -mt-1 grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-sand hover:text-destructive"
+                  data-testid={`remove-${p.id}`}
+                >
                   <Trash2 className="size-4" aria-hidden />
                 </button>
               </div>
               {blocker && (
-                <p className="mt-2 flex gap-1.5 text-xs font-medium text-copper" role="status" data-testid={`blocker-${p.id}`}>
+                <p className="mt-1.5 flex gap-1.5 text-xs font-medium text-copper" role="status" data-testid={`blocker-${p.id}`}>
                   <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden />
                   {blocker === "over_max" && max ? c.cart.lineOverMax(max) : blocker === "unavailable" ? c.cart.lineUnavailable : c.cart.lineQuoteOnly}
                 </p>
               )}
-              <div className="mt-auto flex items-end justify-between gap-3 pt-3">
-                <QtyStepper id={p.id} title={p.title} qty={qty} onChange={(n) => setQty(p.id, n)} />
-                <p className="font-semibold tnum" dir="ltr" data-testid={`line-total-${p.id}`}>{total != null ? formatMAD(total) : c.price.onQuote}</p>
+              <div className="mt-auto flex items-end justify-between gap-3 pt-2">
+                <QtyStepper id={p.id} title={p.title} qty={qty} onChange={(n) => setQty(p.id, n)} size={compact ? "xs" : "sm"} />
+                {total != null && (
+                  <p className={cn("font-bold tnum", compact && "text-sm")} dir="ltr" data-testid={`line-total-${p.id}`}>{formatMAD(total)}</p>
+                )}
               </div>
             </div>
           </li>
@@ -160,7 +178,7 @@ export function CartLines({ preview }: { preview: PreviewState }) {
 }
 
 /** Quantité : boutons −/+ et saisie directe (1 à 999). */
-export function QtyStepper({ id, title, qty, onChange, size = "sm" }: { id: string; title: string; qty: number; onChange: (n: number) => void; size?: "sm" | "lg" }) {
+export function QtyStepper({ id, title, qty, onChange, size = "sm" }: { id: string; title: string; qty: number; onChange: (n: number) => void; size?: "xs" | "sm" | "lg" }) {
   const { locale } = useT();
   const c = commerceDict(locale);
   const [draft, setDraft] = useState(String(qty));
@@ -170,10 +188,11 @@ export function QtyStepper({ id, title, qty, onChange, size = "sm" }: { id: stri
     setDraft(String(n));
     if (n !== qty) onChange(n);
   };
-  const h = size === "lg" ? "h-12" : "h-10";
+  const h = size === "lg" ? "h-12" : size === "xs" ? "h-9" : "h-10";
+  const w = size === "lg" ? "w-11" : size === "xs" ? "w-9" : "w-10";
   return (
-    <div className={cn("flex items-center rounded-lg border border-input", h)} role="group" aria-label={`${c.cart.qty} ${title}`} dir="ltr">
-      <button type="button" className={cn("grid h-full place-items-center hover:bg-sand disabled:opacity-40", size === "lg" ? "w-11" : "w-10")} onClick={() => onChange(Math.max(1, qty - 1))} disabled={qty <= 1} aria-label="−1">
+    <div className={cn("flex items-center rounded-xl border border-input bg-card", h)} role="group" aria-label={`${c.cart.qty} ${title}`} dir="ltr">
+      <button type="button" className={cn("grid h-full place-items-center rounded-lg hover:bg-sand disabled:opacity-40", w)} onClick={() => onChange(Math.max(1, qty - 1))} disabled={qty <= 1} aria-label="−1">
         <Minus className="size-3.5" aria-hidden />
       </button>
       <input
@@ -188,10 +207,10 @@ export function QtyStepper({ id, title, qty, onChange, size = "sm" }: { id: stri
             commit((e.target as HTMLInputElement).value);
           }
         }}
-        className="h-full w-12 bg-transparent text-center text-sm tnum outline-none"
+        className={cn("h-full bg-transparent text-center text-sm font-semibold tnum outline-none", size === "xs" ? "w-9" : "w-12")}
         data-testid={`qty-${id}`}
       />
-      <button type="button" className={cn("grid h-full place-items-center hover:bg-sand disabled:opacity-40", size === "lg" ? "w-11" : "w-10")} onClick={() => onChange(Math.min(999, qty + 1))} disabled={qty >= 999} aria-label="+1">
+      <button type="button" className={cn("grid h-full place-items-center rounded-lg hover:bg-sand disabled:opacity-40", w)} onClick={() => onChange(Math.min(999, qty + 1))} disabled={qty >= 999} aria-label="+1">
         <Plus className="size-3.5" aria-hidden />
       </button>
     </div>

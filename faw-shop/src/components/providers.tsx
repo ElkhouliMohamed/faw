@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { ThemeProvider } from "next-themes";
 import { DICTS, type Dict, type Locale } from "@/lib/i18n";
 import type { PublicProduct } from "@/lib/products";
@@ -227,15 +228,49 @@ function CartProvider({ catalog: products, shop, children }: { catalog: PublicPr
   return <CartCtx.Provider value={value}>{children}</CartCtx.Provider>;
 }
 
+/* ---------- Panier latéral (tiroir) : chargé à la première ouverture seulement ---------- */
+const CartDrawer = dynamic(() => import("./cart-drawer").then((m) => m.CartDrawer), { ssr: false });
+type DrawerState = { open: boolean; openCart: () => void; closeCart: () => void };
+const DrawerCtx = createContext<DrawerState>({ open: false, openCart: () => {}, closeCart: () => {} });
+/** Ouvre / ferme le panier latéral (en-tête, « Ajouter au panier », ajout rapide). */
+export const useCartDrawer = () => useContext(DrawerCtx);
+function DrawerProvider({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  // Élément qui a ouvert le tiroir : il reprend le focus à la fermeture.
+  const trigger = useRef<HTMLElement | null>(null);
+  const openCart = useCallback(() => {
+    trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setLoaded(true);
+    setOpen(true);
+  }, []);
+  const closeCart = useCallback(() => {
+    setOpen(false);
+    const el = trigger.current;
+    trigger.current = null;
+    if (el && el.isConnected) requestAnimationFrame(() => el.focus({ preventScroll: true }));
+  }, []);
+  const value = useMemo(() => ({ open, openCart, closeCart }), [open, openCart, closeCart]);
+  return (
+    <DrawerCtx.Provider value={value}>
+      {children}
+      {loaded && <CartDrawer open={open} onClose={closeCart} />}
+    </DrawerCtx.Provider>
+  );
+}
+
 /* ---------- jeton anti-spam des formulaires publics ---------- */
 const FormTokenCtx = createContext<string>("");
+/** Jeton anti-spam courant (il change quand le serveur rafraîchit la mise en page). */
+export const useFormToken = () => useContext(FormTokenCtx);
 /** Champs cachés anti-robot : jeton signé (temps de remplissage) + champ piège. */
 export function FormGuard() {
   const token = useContext(FormTokenCtx);
   return (
     <>
       <input type="hidden" name="formToken" value={token} />
-      <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", top: "auto", width: 1, height: 1, overflow: "hidden" }}>
+      {/* Masqué sans décalage « left: -10000px » : en arabe (RTL), ce décalage élargissait la page de 10 000 px. */}
+      <div aria-hidden="true" style={{ position: "absolute", width: 1, height: 1, margin: -1, padding: 0, overflow: "hidden", clipPath: "inset(50%)", whiteSpace: "nowrap", border: 0 }}>
         <label>
           Site web (laisser vide)
           <input type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" />
@@ -253,7 +288,9 @@ export function Providers({ locale, catalog, shop, formToken, nonce, defaultThem
           <CatalogCtx.Provider value={catalog}>
             <ShopCtx.Provider value={shop}>
               <ConsentProvider>
-                <CartProvider catalog={catalog} shop={shop}>{children}</CartProvider>
+                <CartProvider catalog={catalog} shop={shop}>
+                  <DrawerProvider>{children}</DrawerProvider>
+                </CartProvider>
               </ConsentProvider>
             </ShopCtx.Provider>
           </CatalogCtx.Provider>

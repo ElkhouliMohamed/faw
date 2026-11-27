@@ -32,8 +32,8 @@ export function DeliverySelector() {
             key={m}
             data-testid={`delivery-${m}`}
             className={cn(
-              "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/40",
-              mode === m ? "border-copper bg-sand" : "border-rule bg-card hover:border-copper/60",
+              "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/40",
+              mode === m ? "border-flame bg-[color-mix(in_oklab,var(--flame)_8%,var(--card))] ring-1 ring-flame" : "border-rule bg-card hover:border-flame/60",
             )}
           >
             <input type="radio" name="deliveryModeUi" value={m} checked={mode === m} onChange={() => setMode(m)} className="mt-1 accent-[var(--copper)]" />
@@ -103,7 +103,7 @@ export function CouponField() {
   const [pending, start] = useTransition();
   if (coupon)
     return (
-      <div className="flex items-center justify-between gap-2 rounded-lg border border-rule bg-sand px-3 py-2 text-sm" data-testid="coupon-applied">
+      <div className="flex items-center justify-between gap-2 rounded-xl border border-rule bg-sand px-3 py-2 text-sm" data-testid="coupon-applied">
         <span className="flex items-center gap-1.5"><Tag className="size-4 text-copper" />{t.mod.coupon} <b className="font-mono">{coupon.code}</b></span>
         <button type="button" onClick={() => setCoupon(null)} className="inline-flex items-center gap-1 text-xs underline" data-testid="coupon-remove"><X className="size-3.5" />{t.mod.couponRemove}</button>
       </div>
@@ -125,8 +125,8 @@ export function CouponField() {
     >
       <label htmlFor="coupon-code" className="text-xs text-muted-foreground">{t.mod.coupon}</label>
       <div className="flex gap-2">
-        <input id="coupon-code" data-testid="coupon-input" value={code} onChange={(e) => setCode(e.target.value)} maxLength={40} autoComplete="off" className="h-10 min-w-0 flex-1 rounded-[2px] border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30" />
-        <button type="submit" disabled={pending || !code.trim()} className="btn btn-ghost h-10 px-4 text-sm" data-testid="coupon-apply">{t.mod.couponApply}</button>
+        <input id="coupon-code" data-testid="coupon-input" value={code} onChange={(e) => setCode(e.target.value)} maxLength={40} autoComplete="off" className="h-11 min-w-0 flex-1 rounded-xl border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30" />
+        <button type="submit" disabled={pending || !code.trim()} className="btn btn-ghost h-11 rounded-xl px-4 text-sm" data-testid="coupon-apply">{t.mod.couponApply}</button>
       </div>
       {msg && <p className="text-xs text-destructive" role="alert" data-testid="coupon-error">{msg}</p>}
     </form>

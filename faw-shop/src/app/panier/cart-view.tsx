@@ -1,122 +1,69 @@
 "use client";
-import { itemHref } from "@/lib/products";
 
 import Link from "next/link";
-import { ArrowRight, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { ArrowRight, ShoppingBag } from "lucide-react";
 import { useCart, useShop, useT } from "@/components/providers";
-import { CouponField, DeliverySelector, Totals } from "@/components/cart-parts";
+import { CouponField, DeliverySelector } from "@/components/cart-parts";
+import { CartLines, CartToQuote, ServerTotals, useCartPreview } from "@/components/cart-summary";
 import { Steps } from "@/components/steps";
-import { ProductImage } from "@/components/product-image";
-import { formatDH } from "@/lib/format";
+import { commerceDict } from "@/lib/commerce-dict";
 import { QuoteForm } from "@/app/devis/quote-form";
 
+/** Page panier : mêmes lignes que le panier latéral, totaux recalculés par Laravel, commande ou demande de devis. */
 export function CartView() {
-  const { t } = useT();
+  const { t, locale } = useT();
+  const c = commerceDict(locale);
   const { showPrices } = useShop();
-  const { ready, rows, setQty, remove } = useCart();
+  const { ready, rows } = useCart();
+  const preview = useCartPreview();
   const title = showPrices ? t.cart.title : t.cart.titleQuote;
   const empty = showPrices ? t.cart.empty : t.cart.emptyQuote;
+  const blocked = rows.some((r) => r.product.quoteOnly) || !!preview.data?.quoteRequired;
 
   return (
-    <div className="shell pt-10 sm:pt-14">
-      {showPrices && <Steps current={0} />}
-      <h1 className="mt-8 text-d1">{title}</h1>
-      {!ready ? (
-        <div className="mt-10 h-40 animate-pulse rounded-lg bg-muted" />
-      ) : rows.length === 0 ? (
-        <div className="mt-10 rounded-lg bg-sand p-12 text-center">
-          <ShoppingBag className="mx-auto size-10 text-muted-foreground" />
-          <p className="mt-4 text-muted-foreground">{empty}</p>
-          <Link href="/produits" className="btn btn-primary mt-6">{t.cart.continue}</Link>
-        </div>
-      ) : showPrices ? (
-        <div className="mt-8 grid gap-8 lg:grid-cols-12">
-          <div className="space-y-8 lg:col-span-7">
-            <ul className="divide-y divide-rule border-y border-rule" data-testid="cart-lines">
-                {rows.map(({ product: p, qty, lineTotal }) => {
-                  return (
-                    <li key={p.id} className="flex gap-4 py-6 sm:gap-6">
-                      <Link href={itemHref(p)} className={`relative h-28 w-22 shrink-0 overflow-hidden rounded-lg sm:h-36 sm:w-28 bg-sand`}>
-                        <ProductImage src={p.image} alt={p.title} sizes="96px" fit="cover" placeholderLabel="" />
-                      </Link>
-                      <div className="flex min-w-0 flex-1 flex-col">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="eyebrow text-muted-foreground" dir="ltr">{p.id}</p>
-                            <Link href={itemHref(p)} className="mt-1 line-clamp-2 font-medium hover:text-copper" lang="fr" dir="auto">{p.title}</Link>
-                            {p.variantLabel && <p className="mt-1 text-xs text-muted-foreground">{p.variantLabel}</p>}
-                          </div>
-                          <button onClick={() => remove(p.id)} aria-label={`${t.cart.remove} ${p.title}`} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive">
-                            <Trash2 className="size-4" />
-                          </button>
-                        </div>
-                        <div className="mt-auto flex items-end justify-between gap-3 pt-3">
-                          <div className="flex h-10 items-center rounded-lg border border-input" role="group" aria-label={t.product.qty}>
-                            <button className="grid h-full w-10 place-items-center hover:bg-sand" onClick={() => setQty(p.id, qty - 1)} aria-label="−1"><Minus className="size-3.5" /></button>
-                            <span className="w-8 text-center text-sm tnum" data-testid={`qty-${p.id}`}>{qty}</span>
-                            <button className="grid h-full w-10 place-items-center hover:bg-sand" onClick={() => setQty(p.id, qty + 1)} aria-label="+1"><Plus className="size-3.5" /></button>
-                          </div>
-                          <div className="text-end">
-                            <p className="font-semibold tnum" dir="ltr">{formatDH(lineTotal)}</p>
-                            {qty > 1 && <p className="text-xs text-muted-foreground" dir="ltr">{qty} × {formatDH(p.price ?? 0)}</p>}
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-            </ul>
-            <DeliverySelector />
+    <div className="-mb-20 bg-paper pb-20 lg:-mb-28 lg:pb-28">
+      <div className="shell pt-8 sm:pt-12">
+        {showPrices && <Steps current={0} />}
+        <h1 className="mt-6 text-[clamp(1.75rem,1.4rem+1.4vw,2.5rem)] leading-tight font-bold text-ink dark:text-foreground">{title}</h1>
+        {!ready ? (
+          <div className="mt-8 h-48 animate-pulse rounded-2xl bg-sand" />
+        ) : rows.length === 0 ? (
+          <div className="mt-8 rounded-2xl bg-card p-12 text-center shadow-soft">
+            <span className="mx-auto grid size-20 place-items-center rounded-full bg-sand text-copper" aria-hidden>
+              <ShoppingBag className="size-9" strokeWidth={1.5} />
+            </span>
+            <p className="mt-4 text-muted-foreground">{empty}</p>
+            <Link href="/produits" className="btn btn-primary mt-6 rounded-xl">{t.cart.continue}</Link>
           </div>
-          <aside className="lg:col-span-5">
-            <div className="sticky top-24 rounded-lg bg-sand p-6 sm:p-8">
-              <h2 className="text-lg font-semibold">{t.checkout.summary}</h2>
-              <div className="mt-4"><CouponField /></div>
-              <Totals className="mt-4" />
-              <Link href="/commande" data-testid="go-checkout" className="mt-6 btn btn-primary w-full">
-                {t.cart.checkout} <ArrowRight className="size-4 rtl:rotate-180" />
-              </Link>
-              <Link href="/devis?panier=1" data-testid="cart-quote" className="mt-3 btn btn-ghost w-full">
-                {t.v4.quoteCta}
-              </Link>
-              <p className="mt-4 text-xs leading-relaxed text-muted-foreground">{t.cart.note}</p>
+        ) : showPrices ? (
+          <div className="mt-8 grid items-start gap-8 lg:grid-cols-12">
+            <div className="space-y-6 lg:col-span-7">
+              <CartLines preview={preview} />
+              <div className="rounded-2xl bg-card p-5 shadow-soft sm:p-6">
+                <DeliverySelector />
+              </div>
             </div>
-          </aside>
-        </div>
-      ) : (
-        <div className="mt-8 space-y-10">
-          <ul className="divide-y divide-rule border-y border-rule" data-testid="cart-lines">
-            {rows.map(({ product: p, qty }) => (
-              <li key={p.id} className="flex gap-4 py-6 sm:gap-6">
-                <Link href={itemHref(p)} className="relative h-28 w-22 shrink-0 overflow-hidden rounded-lg bg-sand sm:h-36 sm:w-28">
-                  <ProductImage src={p.image} alt={p.title} sizes="96px" fit="cover" placeholderLabel="" />
-                </Link>
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="eyebrow text-muted-foreground" dir="ltr">{p.id}</p>
-                      <Link href={itemHref(p)} className="mt-1 line-clamp-2 font-medium hover:text-copper" lang="fr" dir="auto">{p.title}</Link>
-                      {p.variantLabel && <p className="mt-1 text-xs text-muted-foreground">{p.variantLabel}</p>}
-                    </div>
-                    <button onClick={() => remove(p.id)} aria-label={`${t.cart.remove} ${p.title}`} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive">
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                  <div className="mt-auto flex items-end justify-between gap-3 pt-3">
-                    <div className="flex h-10 items-center rounded-lg border border-input" role="group" aria-label={t.product.qty}>
-                      <button className="grid h-full w-10 place-items-center hover:bg-sand" onClick={() => setQty(p.id, qty - 1)} aria-label="−1"><Minus className="size-3.5" /></button>
-                      <span className="w-8 text-center text-sm tnum" data-testid={`qty-${p.id}`}>{qty}</span>
-                      <button className="grid h-full w-10 place-items-center hover:bg-sand" onClick={() => setQty(p.id, qty + 1)} aria-label="+1"><Plus className="size-3.5" /></button>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Qté {qty} · Prix sur devis</p>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-          <QuoteForm fromCart embedded initialQty={1} />
-        </div>
-      )}
+            <aside className="lg:sticky lg:top-24 lg:col-span-5">
+              <div className="rounded-2xl bg-card p-6 shadow-soft sm:p-7">
+                <h2 className="text-lg font-bold">{c.cart.summary}</h2>
+                <div className="mt-4"><CouponField /></div>
+                <ServerTotals preview={preview} className="mt-5" />
+                {!blocked && (
+                  <Link href="/commande" data-testid="go-checkout" className="btn btn-primary mt-6 h-13 w-full rounded-xl text-base shadow-soft">
+                    {c.cart.order} <ArrowRight className="size-4 rtl:rotate-180" aria-hidden />
+                  </Link>
+                )}
+                <CartToQuote className="mt-3" primary={blocked} />
+              </div>
+            </aside>
+          </div>
+        ) : (
+          <div className="mt-8 space-y-10">
+            <CartLines preview={preview} />
+            <QuoteForm fromCart embedded initialQty={1} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

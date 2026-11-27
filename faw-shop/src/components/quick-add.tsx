@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, Plus } from "lucide-react";
-import { useCart, useShop, useT } from "./providers";
+import { useCart, useCartDrawer, useShop, useT } from "./providers";
 import { cn } from "@/lib/utils";
 
 /** Ajout rapide (quantité 1) depuis une carte produit. */
@@ -10,6 +10,7 @@ export function QuickAdd({ id, title, className, full = false, disabled = false 
   const { t } = useT();
   const { showPrices } = useShop();
   const { add } = useCart();
+  const { openCart } = useCartDrawer();
   const addLabel = showPrices ? t.product.add : t.product.addQuote;
   const addedLabel = showPrices ? t.product.added : t.product.addedQuote;
   const shortLabel = showPrices ? t.v3.addShort : t.product.addQuoteShort;
@@ -21,6 +22,7 @@ export function QuickAdd({ id, title, className, full = false, disabled = false 
       disabled={disabled}
       onClick={() => {
         add(id, 1);
+        openCart();
         setDone(true);
         setTimeout(() => setDone(false), 1600);
       }}

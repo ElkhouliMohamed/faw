@@ -6,7 +6,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Clock, Mail, Phone, ShoppingBag } from "lucide-react";
 import { Logo } from "./logo";
 import { LocaleToggle, ThemeToggle } from "./toggles";
-import { useCart, useShop, useT } from "./providers";
+import { useCart, useCartDrawer, useShop, useT } from "./providers";
 import { WhatsAppIcon } from "./icons";
 import { HomeIcon } from "./home/icon";
 import { cn } from "@/lib/utils";
@@ -81,6 +81,7 @@ export function Header({ links, contact, logo, logoDark, cta }: { links: HeaderL
   const { t } = useT();
   const { showPrices } = useShop();
   const { count, ready } = useCart();
+  const { openCart, open: drawerOpen } = useCartDrawer();
   const cartLabel = showPrices ? t.nav.cart : t.nav.cartQuote;
   // L'adresse affichée garde le préfixe de langue (/fr, /ar) : on le retire pour reconnaître le lien actif (« Accueil » en orange).
   const path = (usePathname() || "/").replace(/^\/(?:fr|ar)(?=\/|$)/, "") || "/";
@@ -146,8 +147,18 @@ export function Header({ links, contact, logo, logoDark, cta }: { links: HeaderL
             <LocaleToggle className="hidden lg:inline-flex" />
             <Link
               href="/panier"
+              role="button"
               data-testid="cart-link"
+              aria-haspopup="dialog"
+              aria-expanded={drawerOpen}
               aria-label={`${cartLabel}${has ? ` (${count})` : ""}`}
+              onClick={(e) => {
+                // Sans JavaScript (ou clic molette / Ctrl) : page /panier ; sinon panier latéral.
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                e.preventDefault();
+                setOpen(false);
+                openCart();
+              }}
               className="relative inline-flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-sand"
             >
               <ShoppingBag className="size-5" aria-hidden />
