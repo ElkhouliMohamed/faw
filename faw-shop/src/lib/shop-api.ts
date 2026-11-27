@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { z } from "zod";
 import { QUOTE_TOKEN_RE } from "./devis";
+import { getLocale } from "./i18n-server";
 
 // Lectures de la boutique via l'API Laravel. Aucun accès direct à la base.
 // - Données publiques (catalogue, merchandising, contenu, menus, réglages) : cache de données Next (revalidate + tags),
@@ -26,9 +27,12 @@ export const REVALIDATE: Record<CacheTag, number> = { catalog: 120, merch: 120, 
  */
 export async function publicJson(path: string, tag: CacheTag, timeout = 8000): Promise<unknown | null> {
   try {
-    const r = await fetch(`${origin()}${path}`, {
-      headers: { Accept: "application/json" },
-      next: { revalidate: REVALIDATE[tag], tags: [tag, "faw"] },
+    const loc = await getLocale().catch(() => "fr");
+    const sep = path.includes("?") ? "&" : "?";
+    const localizedPath = loc === "ar" ? `${path}${sep}locale=ar` : path;
+    const r = await fetch(`${origin()}${localizedPath}`, {
+      headers: { Accept: "application/json", "X-Locale": loc },
+      next: { revalidate: REVALIDATE[tag], tags: [tag, "faw", `faw-${loc}`] },
       signal: AbortSignal.timeout(timeout),
     });
     if (!r.ok) return null;

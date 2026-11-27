@@ -57,11 +57,18 @@ class ShopDataController extends Controller
 
             return false;
         };
+        $loc = \App\Support\LocaleHelper::current();
         $categories = $allCategories->filter($published)->values()->map(fn (Category $c) => [
-            'id' => (int) $c->id, 'parentId' => $c->parentId ? (int) $c->parentId : null, 'slug' => (string) $c->slug, 'label' => (string) $c->label,
-            'short' => (string) ($c->short ?? ''), 'family' => (string) ($c->family ?? ''), 'description' => (string) ($c->description ?? ''),
-            'image' => $c->image ?: null, 'seoTitle' => (string) ($c->seoTitle ?? ''), 'seoDescription' => (string) ($c->seoDescription ?? ''),
-            'h1' => (string) ($c->h1 ?? ''), 'active' => (bool) $c->active, 'warrantyId' => $c->warrantyId ? (int) $c->warrantyId : null,
+            'id' => (int) $c->id, 'parentId' => $c->parentId ? (int) $c->parentId : null, 'slug' => (string) $c->slug,
+            'label' => (string) \App\Support\LocaleHelper::trans($c->label_ar, $c->label, $loc),
+            'short' => (string) \App\Support\LocaleHelper::trans($c->short_ar, $c->short ?? '', $loc),
+            'family' => (string) ($c->family ?? ''),
+            'description' => (string) \App\Support\LocaleHelper::trans($c->description_ar, $c->description ?? '', $loc),
+            'image' => $c->image ?: null,
+            'seoTitle' => (string) \App\Support\LocaleHelper::trans($c->seoTitle_ar, $c->seoTitle ?? '', $loc),
+            'seoDescription' => (string) \App\Support\LocaleHelper::trans($c->seoDescription_ar, $c->seoDescription ?? '', $loc),
+            'h1' => (string) \App\Support\LocaleHelper::trans($c->h1_ar, $c->h1 ?? '', $loc),
+            'active' => (bool) $c->active, 'warrantyId' => $c->warrantyId ? (int) $c->warrantyId : null,
         ]);
         $badges = $order(Badge::where('active', true))->get()->map(fn (Badge $b) => ['id' => (int) $b->id, 'label' => (string) $b->label, 'tone' => (string) ($b->tone ?: 'neutral')]);
         $warranties = Warranty::where('active', true)->orderBy('id')->get()->map(fn (Warranty $w) => ['id' => (int) $w->id, 'name' => (string) $w->name, 'text' => (string) ($w->text ?? '')]);
@@ -98,7 +105,7 @@ class ShopDataController extends Controller
             'frequency' => in_array($p->frequency, ['once', 'session', 'days'], true) ? $p->frequency : 'session', 'frequencyDays' => (int) $p->frequencyDays,
         ]);
         $cities = $order(ShippingCity::where('active', true))->get()->map(fn (ShippingCity $c) => [
-            'slug' => (string) $c->slug, 'name' => (string) $c->name, 'fee' => $show && $c->fee !== null ? (int) $c->fee : null, 'available' => (bool) $c->available, 'delayText' => (string) ($c->delayText ?? ''),
+            'slug' => (string) $c->slug, 'name' => (string) \App\Support\LocaleHelper::trans($c->name_ar, $c->name, $loc), 'fee' => $show && $c->fee !== null ? (int) $c->fee : null, 'available' => (bool) $c->available, 'delayText' => (string) \App\Support\LocaleHelper::trans($c->delayText_ar, $c->delayText ?? '', $loc),
         ]);
         $rules = FeeRule::where('active', true)->orderBy('id')->get()->map(fn (FeeRule $r) => [
             'scope' => $r->scope === 'category' ? 'category' : 'product', 'target' => (string) $r->target, 'city' => (string) ($r->citySlug ?? ''),

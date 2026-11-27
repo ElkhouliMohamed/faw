@@ -55,7 +55,9 @@ class HomepagesResource extends ContentResource
                         ->description('Titre de l’onglet du navigateur et texte de repli si aucune bannière n’est définie.')
                         ->schema([
                             TextInput::make('title')->label('Titre de la page')->required()->maxLength(120)->default('Accueil'),
+                            TextInput::make('title_ar')->label('Titre (arabe)')->maxLength(120)->extraInputAttributes(['dir' => 'rtl']),
                             Textarea::make('excerpt')->label('Sous-titre de repli')->maxLength(1000)->rows(2),
+                            Textarea::make('excerpt_ar')->label('Sous-titre (arabe)')->maxLength(1000)->rows(2)->extraInputAttributes(['dir' => 'rtl']),
                             TextInput::make('slug')->label('Identifiant URL')->default('accueil')->disabled()->dehydrated()->required(),
                             Hidden::make('kind')->default('home')->dehydrateStateUsing(fn () => 'home'),
                             Toggle::make('published')->label('Publié')->default(true)
@@ -65,7 +67,9 @@ class HomepagesResource extends ContentResource
                         ->description('Titre et description proposés à Google. Vides = valeurs générales du site.')
                         ->schema([
                             TextInput::make('seoTitle')->label('Titre SEO')->maxLength(160),
+                            TextInput::make('seoTitle_ar')->label('Titre SEO (arabe)')->maxLength(160)->extraInputAttributes(['dir' => 'rtl']),
                             Textarea::make('seoDescription')->label('Description SEO')->maxLength(320)->rows(3),
+                            Textarea::make('seoDescription_ar')->label('Description SEO (arabe)')->maxLength(320)->rows(3)->extraInputAttributes(['dir' => 'rtl']),
                         ])->columns($grid),
                 ]),
             ])->persistTabInQueryString()->columnSpanFull(),

@@ -33,16 +33,40 @@ class StoreController extends Controller
     protected function publicProduct(Product $p): array
     {
         $priced = app(CommerceService::class)->productPrice($p);
+        $loc = \App\Support\LocaleHelper::current();
         // priceMode: « online » = price + add to cart; « quote » = no price at all (product « sur devis » or prices hidden globally).
-        $row = [...$p->only(['id', 'slug', 'title', 'seoTitle', 'description', 'shortDescription', 'price', 'category', 'brand', 'image', 'availability', 'stockQty', 'priceToConfirm', 'stockToConfirm', 'variantGroup', 'variantLabel', 'sortOrder', 'active', 'metaTitle', 'metaDescription', 'h1', 'attributes', 'badges', 'warrantyId', 'details', 'installationGuide', 'datasheet', 'maintenanceGuide']), 'stockNote' => null, 'updatedAt' => $p->updatedAt?->toIso8601String(), 'basePrice' => $p->price, ...$priced, 'orderable' => PriceVisibility::orderable($p, (int) ($priced['price'] ?? $p->price)),
+        $row = [...$p->only(['id', 'slug', 'title', 'seoTitle', 'description', 'shortDescription', 'price', 'category', 'brand', 'image', 'availability', 'stockQty', 'priceToConfirm', 'stockToConfirm', 'variantGroup', 'variantLabel', 'sortOrder', 'active', 'metaTitle', 'metaDescription', 'h1', 'attributes', 'badges', 'warrantyId', 'details', 'installationGuide', 'datasheet', 'maintenanceGuide', 'title_ar', 'description_ar', 'shortDescription_ar', 'seoTitle_ar', 'seoDescription_ar', 'h1_ar']), 'stockNote' => null, 'updatedAt' => $p->updatedAt?->toIso8601String(), 'basePrice' => $p->price, ...$priced, 'orderable' => PriceVisibility::orderable($p, (int) ($priced['price'] ?? $p->price)),
             'priceMode' => PriceVisibility::mode($p), 'maxOnlineQty' => $p->maxOnlineQty !== null ? (int) $p->maxOnlineQty : null, 'taxRate' => CheckoutService::TAX_RATE];
+
+        if ($loc === 'ar') {
+            $row['title'] = \App\Support\LocaleHelper::trans($p->title_ar, $p->title, 'ar');
+            $row['seoTitle'] = \App\Support\LocaleHelper::trans($p->seoTitle_ar, $p->seoTitle, 'ar');
+            $row['description'] = \App\Support\LocaleHelper::trans($p->description_ar, $p->description, 'ar');
+            $row['shortDescription'] = \App\Support\LocaleHelper::trans($p->shortDescription_ar, $p->shortDescription, 'ar');
+            $row['metaTitle'] = \App\Support\LocaleHelper::trans($p->seoTitle_ar, $p->metaTitle, 'ar');
+            $row['metaDescription'] = \App\Support\LocaleHelper::trans($p->seoDescription_ar, $p->metaDescription, 'ar');
+            $row['h1'] = \App\Support\LocaleHelper::trans($p->h1_ar, $p->h1, 'ar');
+        }
 
         return PriceVisibility::sanitizeProduct($row);
     }
 
     public function categories()
     {
-        return Category::where('active', true)->orderBy('sortOrder')->get(['id', 'parentId', 'slug', 'label', 'short', 'family', 'description', 'image', 'seoTitle', 'seoDescription', 'h1', 'sortOrder']);
+        $loc = \App\Support\LocaleHelper::current();
+
+        return Category::where('active', true)->orderBy('sortOrder')->get()->map(fn (Category $c) => [
+            'id' => $c->id, 'parentId' => $c->parentId, 'slug' => $c->slug,
+            'label' => \App\Support\LocaleHelper::trans($c->label_ar, $c->label, $loc),
+            'short' => \App\Support\LocaleHelper::trans($c->short_ar, $c->short, $loc),
+            'family' => $c->family,
+            'description' => \App\Support\LocaleHelper::trans($c->description_ar, $c->description, $loc),
+            'image' => $c->image,
+            'seoTitle' => \App\Support\LocaleHelper::trans($c->seoTitle_ar, $c->seoTitle, $loc),
+            'seoDescription' => \App\Support\LocaleHelper::trans($c->seoDescription_ar, $c->seoDescription, $loc),
+            'h1' => \App\Support\LocaleHelper::trans($c->h1_ar, $c->h1, $loc),
+            'sortOrder' => $c->sortOrder,
+        ]);
     }
 
     public function submit(Request $r, QuoteService $service, bool $quote = false)
@@ -58,12 +82,13 @@ class StoreController extends Controller
             'company' => ['nullable', 'string', 'max:120'], 'ice' => ['nullable', 'regex:/^\d{15}$/'], 'address' => ['nullable', 'string', 'max:300'],
             'items' => ['required', 'array', 'min:1', 'max:20'], 'items.*.id' => ['required', 'string', 'max:90'], 'items.*.qty' => ['required', 'integer', 'min:1', 'max:999'],
             'note' => ['nullable', 'string', 'max:600'], 'custom' => ['sometimes', 'boolean'], 'kitLeaf' => ['nullable', 'numeric', 'min:0.3', 'max:10'],
-            'coupon' => ['nullable', 'string', 'max:40'], 'attribution' => ['sometimes', 'array'], 'attribution.utmSource' => ['nullable', 'string', 'max:60'], 'attribution.utmMedium' => ['nullable', 'string', 'max:60'], 'attribution.utmCampaign' => ['nullable', 'string', 'max:100'], 'cartId' => ['nullable', 'regex:/^[a-z0-9]{16,40}$/'], 'pickup' => ['sometimes', 'boolean'], 'deliveryMode' => ['nullable', 'string', 'max:60'],
+            'coupon' => ['nullable', 'string', 'max:40'], 'locale' => ['sometimes', 'nullable', Rule::in(['fr', 'ar'])], 'attribution' => ['sometimes', 'array'], 'attribution.utmSource' => ['nullable', 'string', 'max:60'], 'attribution.utmMedium' => ['nullable', 'string', 'max:60'], 'attribution.utmCampaign' => ['nullable', 'string', 'max:100'], 'cartId' => ['nullable', 'regex:/^[a-z0-9]{16,40}$/'], 'pickup' => ['sometimes', 'boolean'], 'deliveryMode' => ['nullable', 'string', 'max:60'],
         ], ['cgv.accepted' => 'Veuillez accepter les conditions générales de vente.', 'paymentMethod.in' => 'Mode de paiement non disponible.']);
         if (($v['clientType'] ?? '') === 'entreprise' && empty($v['company'])) {
             throw ValidationException::withMessages(['company' => 'Raison sociale requise.']);
         }
         if (! $quote) {
+            $v['locale'] = $v['locale'] ?? \App\Support\LocaleHelper::current($r);
             // Online order: CheckoutService recomputes every amount and checks the payment method server-side.
             $pickup = ($v['pickup'] ?? false) || ($v['fulfilment'] ?? '') === 'retrait' || ($v['deliveryMode'] ?? '') === 'retrait';
             $v['pickup'] = $pickup;
@@ -71,6 +96,7 @@ class StoreController extends Controller
 
             return response()->json(app(CheckoutService::class)->place($v), 201)->header('Cache-Control', 'no-store');
         }
+        $v['locale'] = $v['locale'] ?? \App\Support\LocaleHelper::current($r);
         $priced = $service->price($v['items'], $v);
         $token = Quote::newRawToken();
         $result = DB::transaction(function () use ($v, $priced, $token) {
@@ -84,7 +110,7 @@ class StoreController extends Controller
             $transport = $transportData['input'];
             $transportLabel = $transportData['label'];
             $number = 'FAW-'.now()->format('ymd').'-'.strtoupper(bin2hex(random_bytes(16)));
-            $o = ShopOrder::create(['number' => $number, 'contactId' => $client->id, 'customerName' => $v['name'], 'phone' => $phone, 'email' => $v['email'] ?? null, 'city' => $v['city'], 'address' => $v['address'] ?? '', 'company' => $v['company'] ?? null, 'ice' => $v['ice'] ?? null, 'deliveryMode' => $pickup ? 'retrait' : 'autre', 'deliveryFee' => 0, 'deliveryNote' => $transportLabel, 'paymentMethod' => 'à définir', 'clientType' => $v['clientType'] ?? 'particulier', 'notes' => $v['note'] ?? null, 'subtotal' => $priced['total'], 'total' => $priced['total'], 'couponCode' => null, 'couponDiscount' => 0, 'cartId' => $v['cartId'] ?? null, 'utmSource' => $v['attribution']['utmSource'] ?? null, 'utmMedium' => $v['attribution']['utmMedium'] ?? null, 'utmCampaign' => $v['attribution']['utmCampaign'] ?? null, 'quoteRefusal' => $priced['reasons'] ? implode(' ; ', $priced['reasons']) : null]);
+            $o = ShopOrder::create(['number' => $number, 'contactId' => $client->id, 'customerName' => $v['name'], 'phone' => $phone, 'email' => $v['email'] ?? null, 'city' => $v['city'], 'address' => $v['address'] ?? '', 'company' => $v['company'] ?? null, 'ice' => $v['ice'] ?? null, 'deliveryMode' => $pickup ? 'retrait' : 'autre', 'deliveryFee' => 0, 'deliveryNote' => $transportLabel, 'paymentMethod' => 'à définir', 'clientType' => $v['clientType'] ?? 'particulier', 'notes' => $v['note'] ?? null, 'subtotal' => $priced['total'], 'total' => $priced['total'], 'couponCode' => null, 'couponDiscount' => 0, 'cartId' => $v['cartId'] ?? null, 'locale' => $v['locale'], 'utmSource' => $v['attribution']['utmSource'] ?? null, 'utmMedium' => $v['attribution']['utmMedium'] ?? null, 'utmCampaign' => $v['attribution']['utmCampaign'] ?? null, 'quoteRefusal' => $priced['reasons'] ? implode(' ; ', $priced['reasons']) : null]);
             foreach ($priced['lines'] as $l) {
                 DB::table('OrderItem')->insert(['orderId' => $o->id, 'productId' => $l['id'], 'title' => $l['title'], 'category' => $l['category'], 'unitPrice' => $l['unit'], 'quantity' => $l['qty'], 'lineTotal' => $l['total']]);
             }

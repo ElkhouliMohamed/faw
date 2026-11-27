@@ -21,12 +21,19 @@ export async function siteOrigin() {
  */
 export async function alternates(path: string) {
   const origin = await siteOrigin();
+  const cleanPath = path === "/" ? "" : path.startsWith("/") ? path : `/${path}`;
   const ar = (await urlLocale()) === "ar";
-  const fr = `${origin}${path === "/" ? "/" : path}`;
-  const arUrl = `${fr}${path.includes("?") ? "&" : "?"}lang=ar`;
+  const frUrl = `${origin}/fr${cleanPath}`;
+  const arUrl = `${origin}/ar${cleanPath}`;
   return {
-    canonical: ar ? arUrl : fr,
-    languages: { "fr-MA": fr, "ar-MA": arUrl, "x-default": fr },
+    canonical: ar ? arUrl : frUrl,
+    languages: {
+      "fr-MA": frUrl,
+      "ar-MA": arUrl,
+      "fr": frUrl,
+      "ar": arUrl,
+      "x-default": frUrl,
+    },
   };
 }
 

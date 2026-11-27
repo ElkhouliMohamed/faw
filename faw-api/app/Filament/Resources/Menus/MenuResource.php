@@ -43,22 +43,25 @@ class MenuResource extends OwnerResource
                         ->helperText('Un seul menu par emplacement.'),
                     TextInput::make('title')->label('Titre de la colonne')->maxLength(60)->placeholder('Boutique')
                         ->helperText('Affiché au-dessus des liens dans le pied de page (facultatif).'),
+                    TextInput::make('title_ar')->label('Titre (arabe)')->maxLength(60)->extraInputAttributes(['dir' => 'rtl'])
+                        ->helperText('Titre affiché en arabe (facultatif).'),
                     Toggle::make('active')->label('Menu actif')->default(true)
                         ->helperText('Désactivé : le site affiche les liens par défaut.'),
                 ])
-                ->columns(['default' => 1, 'lg' => 3])
+                ->columns(['default' => 1, 'lg' => 4])
                 ->columnSpanFull(),
             Section::make('Liens')
                 ->description('Glissez pour réordonner. Lien interne (/produits), adresse https://, tel:+212… ou mailto:…')
                 ->schema([
                     Repeater::make('items')->hiddenLabel()->schema([
                         TextInput::make('label')->label('Libellé')->required()->maxLength(60),
+                        TextInput::make('label_ar')->label('Libellé (arabe)')->maxLength(60)->extraInputAttributes(['dir' => 'rtl']),
                         TextInput::make('url')->label('Lien')->required()->maxLength(500)->regex(SiteMenu::LINK)->placeholder('/produits'),
                         Toggle::make('newTab')->label('Nouvel onglet')->inline(false),
                         Toggle::make('highlight')->label('Mettre en avant (bouton)')->inline(false)
                             ->helperText('En-tête : affiché comme bouton.'),
                     ])
-                        ->columns(['default' => 1, 'md' => 2, 'xl' => 4])
+                        ->columns(['default' => 1, 'md' => 2, 'xl' => 5])
                         ->reorderable()
                         ->collapsible()
                         ->cloneable()

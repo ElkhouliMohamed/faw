@@ -107,6 +107,18 @@ abstract class ContentResource extends OwnerResource
                 DateTimePicker::make('publishedAt')->label('Publication différée (facultative)')->seconds(false)->helperText('Laisser vide pour publier immédiatement.'),
             ])->columns($grid),
         ]);
+        $tabs[] = Tab::make('Traduction arabe')->icon('heroicon-o-language')->schema([
+            Section::make('Contenu en arabe (facultatif)')
+                ->description('Affiché lorsque le visiteur consulte le site en arabe.')
+                ->schema([
+                    TextInput::make('title_ar')->label('Titre (arabe)')->maxLength(120)->extraInputAttributes(['dir' => 'rtl']),
+                    TextInput::make('ctaLabel_ar')->label('Libellé du bouton (arabe)')->maxLength(40)->extraInputAttributes(['dir' => 'rtl'])->visible($home),
+                    Textarea::make('excerpt_ar')->label($home ? 'Sous-titre (arabe)' : 'Résumé (arabe)')->maxLength(1000)->rows(3)->columnSpanFull()->extraInputAttributes(['dir' => 'rtl']),
+                    Textarea::make('bodyHtml_ar')->label('Contenu HTML en arabe')->rows(10)->maxLength(100000)->columnSpanFull()->extraInputAttributes(['dir' => 'rtl'])->visible(! $home),
+                    TextInput::make('seoTitle_ar')->label('Titre SEO (arabe)')->maxLength(160)->extraInputAttributes(['dir' => 'rtl']),
+                    Textarea::make('seoDescription_ar')->label('Description SEO (arabe)')->maxLength(320)->rows(3)->extraInputAttributes(['dir' => 'rtl']),
+                ])->columns($grid),
+        ]);
 
         return $schema->components([
             Tabs::make('Contenu')->tabs($tabs)->columnSpanFull(),

@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { cachedRedirect, rememberRedirect } from "@/lib/redirect-cache";
+
 const resolvedRedirect = z.object({ to: z.string().regex(/^\/(?!\/)/), code: z.union([z.literal(301), z.literal(302)]) });
-/** Redirection SEO du back-office ; réponse (redirection ou absence) gardée 60 s en mémoire, vidée par /revalidate. */
+
+/** Redirection SEO du back-office ; réponse gardée 60 s en mémoire, vidée par /revalidate. */
 async function matchRedirect(pathname: string) {
   const known = cachedRedirect(pathname);
   if (known !== undefined) return known;
@@ -13,19 +15,13 @@ async function matchRedirect(pathname: string) {
       rememberRedirect(pathname, null);
       return null;
     }
-    if (response.status !== 200) return null; // erreur ou limite atteinte : pas de mise en cache
+    if (response.status !== 200) return null;
     const hit = resolvedRedirect.parse(await response.json());
     rememberRedirect(pathname, hit);
     return hit;
   } catch { return null; }
 }
 
-/**
- * - 301 : /produits/CF-EI60-80 (toute casse) -> /produits/cf-ei60-80.
- * - ?lang=ar|fr : URL alternative (hreflang) -> langue transmise au rendu via un en-tête interne.
- * - Content-Security-Policy avec nonce par requête (scripts inline de Next autorisés par nonce, pas d'unsafe-eval en prod).
- */
-// Liens privés (/devis/suivi, /devis/pdf, /devis/confirmation, /commande/confirmation) : limitation de débit par IP (mémoire du processus).
 const privateHits = new Map<string, number[]>();
 function privateLinkAllowed(req: NextRequest) {
   const xff = req.headers.get("x-forwarded-for");
@@ -41,13 +37,14 @@ function privateLinkAllowed(req: NextRequest) {
   if (privateHits.size > 5000) for (const [k, v] of privateHits) if (!v.some((t) => now - t < win)) privateHits.delete(k);
   return ok;
 }
-const PRIVATE_QUOTE = /^\/(?:devis\/(?:suivi|pdf|confirmation)|commande\/confirmation)\//;
+
+const PRIVATE_QUOTE = /^\/(?:(?:fr|ar)\/)?(?:devis\/(?:suivi|pdf|confirmation)|commande\/confirmation)\//;
 
 export async function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
-  if (/^\/(admin|livewire|filament|storage|api)(\/|$)/.test(pathname) || /^\/(css|js|fonts)\/filament(\/|$)/.test(pathname)) {
-    // Next otherwise supplies its listening port (3100) even when HTTPS terminates at the preview proxy.
-    // Forward the browser-facing authority, not the internal Laravel/Next address.
+  const { pathname } = req.nextUrl;
+
+  // Pass-through routes (Laravel API/admin/storage, static assets, revalidation)
+  if (/^\/(admin|livewire|filament|storage|api|revalidate)(\/|$)/.test(pathname) || /^\/(css|js|fonts)\/filament(\/|$)/.test(pathname)) {
     const forwarded = new Headers(req.headers);
     const protocol = req.headers.get("x-forwarded-proto")?.split(",")[0].trim() === "https" ? "https" : req.nextUrl.protocol.replace(":", "");
     const publicOrigin = new URL(`${protocol}://${req.headers.get("host") || req.nextUrl.host}`);
@@ -56,35 +53,75 @@ export async function middleware(req: NextRequest) {
     forwarded.set("x-forwarded-port", publicOrigin.port || (publicOrigin.protocol === "https:" ? "443" : "80"));
     return NextResponse.next({ request: { headers: forwarded } });
   }
+
   const privateQuote = PRIVATE_QUOTE.test(pathname);
-  if (privateQuote && !privateLinkAllowed(req))
+  if (privateQuote && !privateLinkAllowed(req)) {
     return new NextResponse("Trop de requêtes. Réessayez dans quelques minutes.", {
       status: 429,
       headers: { "Content-Type": "text/plain; charset=utf-8", "Retry-After": "600", "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" },
     });
-  // Redirections SEO du back-office (hors back-office, API et liens privés).
-  if (!pathname.startsWith("/admin") && !pathname.startsWith("/api/") && !privateQuote) {
-    const r = await matchRedirect(pathname);
+  }
+
+  // Detect language prefix /fr or /ar
+  let locale: "fr" | "ar" = "fr";
+  let internalPath = pathname;
+  let hasLocalePrefix = false;
+
+  if (pathname === "/ar" || pathname.startsWith("/ar/")) {
+    locale = "ar";
+    internalPath = pathname.slice(3) || "/";
+    hasLocalePrefix = true;
+  } else if (pathname === "/fr" || pathname.startsWith("/fr/")) {
+    locale = "fr";
+    internalPath = pathname.slice(3) || "/";
+    hasLocalePrefix = true;
+  }
+
+  // If a ?lang=ar or ?lang=fr query parameter explicitly overrides the current prefix:
+  const queryLang = req.nextUrl.searchParams.get("lang");
+  if ((queryLang === "ar" || queryLang === "fr") && hasLocalePrefix && queryLang !== locale) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/${queryLang}${internalPath === "/" ? "" : internalPath}`;
+    url.searchParams.delete("lang");
+    const res = NextResponse.redirect(url, 307);
+    res.cookies.set("faw-locale", queryLang, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+    return res;
+  }
+
+  // If there is no prefix (/ or /produits ...), redirect to the localized URL prefix
+  if (!hasLocalePrefix) {
+    const target = queryLang === "ar" || (!queryLang && req.cookies.get("faw-locale")?.value === "ar") ? "ar" : "fr";
+    const url = req.nextUrl.clone();
+    url.pathname = `/${target}${pathname === "/" ? "" : pathname}`;
+    url.searchParams.delete("lang");
+    const res = NextResponse.redirect(url, 307);
+    res.cookies.set("faw-locale", target, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+    return res;
+  }
+
+  // SEO redirects from back office
+  if (!privateQuote) {
+    const r = await matchRedirect(internalPath);
     if (r) {
-      if (/^https:\/\//.test(r.to)) return NextResponse.redirect(new URL(r.to), r.code);
-      const rel = new URL(r.to, "http://x");
+      if (/^https?:\/\//.test(r.to)) return NextResponse.redirect(new URL(r.to), r.code);
       const url = req.nextUrl.clone();
-      url.pathname = rel.pathname;
-      url.search = rel.search || search;
+      const cleanTo = r.to.startsWith("/") ? r.to : `/${r.to}`;
+      url.pathname = `/${locale}${cleanTo === "/" ? "" : cleanTo}`;
       return NextResponse.redirect(url, r.code);
     }
   }
-  const m = pathname.match(/^\/produits\/([^/]+)\/?$/);
+
+  // Normaliser la casse sur les produits
+  const m = internalPath.match(/^\/produits\/([^/]+)\/?$/);
   if (m) {
     let lower = m[1];
     try {
       lower = decodeURIComponent(m[1]).toLowerCase();
     } catch {}
     const target = `/produits/${lower}`;
-    if (target !== pathname) {
+    if (target !== internalPath) {
       const url = req.nextUrl.clone();
-      url.pathname = target;
-      url.search = search;
+      url.pathname = `/${locale}${target}`;
       return NextResponse.redirect(url, 301);
     }
   }
@@ -109,18 +146,15 @@ export async function middleware(req: NextRequest) {
   ].join("; ");
 
   const reqHeaders = new Headers(req.headers);
-  reqHeaders.delete("x-faw-locale");
-  const lang = req.nextUrl.searchParams.get("lang");
-  if (lang === "ar" || lang === "fr") reqHeaders.set("x-faw-locale", lang);
+  reqHeaders.set("x-faw-locale", locale);
+  reqHeaders.set("x-faw-path", internalPath);
   reqHeaders.set("x-nonce", nonce);
   reqHeaders.set("content-security-policy", csp);
 
-  const res = NextResponse.next({ request: { headers: reqHeaders } });
-  // Une URL ?lang=ar|fr fixe aussi le cookie : la langue reste cohérente quand le paramètre disparaît
-  // (filtres boutique, liens internes) et le bouton de langue peut ensuite la changer.
-  if ((lang === "ar" || lang === "fr") && req.cookies.get("faw-locale")?.value !== lang) {
-    res.cookies.set("faw-locale", lang, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
-  }
+  const rewriteUrl = req.nextUrl.clone();
+  rewriteUrl.pathname = internalPath;
+  const res = NextResponse.rewrite(rewriteUrl, { request: { headers: reqHeaders } });
+  res.cookies.set("faw-locale", locale, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
   res.headers.set("Content-Security-Policy", csp);
   if (privateQuote) {
     res.headers.set("Cache-Control", "private, no-store, max-age=0");
@@ -133,9 +167,6 @@ export async function middleware(req: NextRequest) {
 export const config = {
   runtime: "nodejs",
   matcher: [
-    {
-      source: "/((?!_next/static|_next/image|images/|media/|favicon|icon|apple-icon|og\\.jpg|robots\\.txt|sitemap\\.xml).*)",
-      missing: [{ type: "header", key: "next-router-prefetch" }],
-    },
+    "/((?!_next/static|_next/image|images/|media/|favicon|icon|apple-icon|og\\.jpg|robots\\.txt|sitemap\\.xml).*)",
   ],
 };

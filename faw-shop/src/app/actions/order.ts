@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { placeOrder } from "@/lib/commerce";
 import { commerceDict } from "@/lib/commerce-dict";
+import { getLocale } from "@/lib/i18n-server";
 import { spamCheck } from "@/lib/security";
 
 export type OrderFormState = { ok: false; message?: string; errors?: Record<string, string> } | null;
@@ -14,7 +15,8 @@ const str = (fd: FormData, k: string, max = 300) => String(fd.get(k) ?? "").trim
  * recalcule les montants : aucun total du navigateur n'est transmis.
  */
 export async function createOrder(_prev: OrderFormState, fd: FormData): Promise<OrderFormState> {
-  const c = commerceDict("fr");
+  const locale = (await getLocale().catch(() => "fr")) as "fr" | "ar";
+  const c = commerceDict(locale);
   const spam = await spamCheck(fd, "order");
   if (!spam.ok) return { ok: false, message: spam.message };
   let items: unknown;
@@ -34,6 +36,7 @@ export async function createOrder(_prev: OrderFormState, fd: FormData): Promise<
   const payload = {
     items,
     attribution,
+    locale,
     name: str(fd, "name", 80),
     phone: /^[5-7]\d{8}$/.test(phone) ? `0${phone}` : phone,
     email: str(fd, "email", 120),
@@ -57,5 +60,5 @@ export async function createOrder(_prev: OrderFormState, fd: FormData): Promise<
     if (!Object.keys(errors).length) return { ok: false, message: c.checkout.unavailable };
     return { ok: false, message: errors.items || errors.paymentMethod || c.checkout.errors, errors };
   }
-  redirect(r.paymentMethod === "carte" ? `/commande/paiement/${r.number}` : `/commande/confirmation/${r.number}?nouveau=1`);
+  redirect(r.paymentMethod === "carte" ? `/${locale}/commande/paiement/${r.number}` : `/${locale}/commande/confirmation/${r.number}?nouveau=1`);
 }

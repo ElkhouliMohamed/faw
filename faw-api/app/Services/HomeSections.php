@@ -51,26 +51,26 @@ final class HomeSections
 
     /** Scalar fields per type => max length ('bool' / 'int' for the other kinds). */
     private const FIELDS = [
-        'hero' => ['eyebrow' => 80, 'title' => 140, 'subtitle' => 400, 'image' => 500, 'imageAlt' => 160, 'primaryLabel' => 40, 'primaryUrl' => 500, 'secondaryLabel' => 60, 'secondaryUrl' => 500, 'showContact' => 'bool'],
-        'categories' => ['title' => 120, 'subtitle' => 300],
-        'products' => ['title' => 120, 'subtitle' => 300, 'linkLabel' => 40, 'linkUrl' => 500],
-        'usps' => ['title' => 120, 'subtitle' => 300],
-        'references' => ['title' => 120, 'subtitle' => 300],
-        'testimonials' => ['title' => 120, 'subtitle' => 300],
-        'cta' => ['title' => 120, 'text' => 400, 'label' => 40, 'url' => 500, 'showWhatsapp' => 'bool'],
-        'blog' => ['title' => 120, 'count' => 'int'],
-        'text' => ['title' => 120, 'body' => 8000],
-        'faq' => ['title' => 120],
+        'hero' => ['eyebrow' => 80, 'eyebrow_ar' => 80, 'title' => 140, 'title_ar' => 140, 'subtitle' => 400, 'subtitle_ar' => 400, 'image' => 500, 'imageAlt' => 160, 'primaryLabel' => 40, 'primaryLabel_ar' => 40, 'primaryUrl' => 500, 'secondaryLabel' => 60, 'secondaryLabel_ar' => 60, 'secondaryUrl' => 500, 'showContact' => 'bool'],
+        'categories' => ['title' => 120, 'title_ar' => 120, 'subtitle' => 300, 'subtitle_ar' => 300],
+        'products' => ['title' => 120, 'title_ar' => 120, 'subtitle' => 300, 'subtitle_ar' => 300, 'linkLabel' => 40, 'linkLabel_ar' => 40, 'linkUrl' => 500],
+        'usps' => ['title' => 120, 'title_ar' => 120, 'subtitle' => 300, 'subtitle_ar' => 300],
+        'references' => ['title' => 120, 'title_ar' => 120, 'subtitle' => 300, 'subtitle_ar' => 300],
+        'testimonials' => ['title' => 120, 'title_ar' => 120, 'subtitle' => 300, 'subtitle_ar' => 300],
+        'cta' => ['title' => 120, 'title_ar' => 120, 'text' => 400, 'text_ar' => 400, 'label' => 40, 'label_ar' => 40, 'url' => 500, 'showWhatsapp' => 'bool'],
+        'blog' => ['title' => 120, 'title_ar' => 120, 'count' => 'int'],
+        'text' => ['title' => 120, 'title_ar' => 120, 'body' => 8000, 'body_ar' => 8000],
+        'faq' => ['title' => 120, 'title_ar' => 120],
     ];
 
     /** List fields per type => [max items, item fields => max length]. */
     private const LISTS = [
         'categories' => ['slugs' => [12, null]],
         'products' => ['ids' => [12, null]],
-        'usps' => ['items' => [8, ['icon' => 20, 'title' => 80, 'text' => 300]]],
+        'usps' => ['items' => [8, ['icon' => 20, 'title' => 80, 'title_ar' => 80, 'text' => 300, 'text_ar' => 300]]],
         'references' => ['logos' => [24, ['name' => 80, 'image' => 500, 'url' => 500]]],
-        'testimonials' => ['items' => [12, ['quote' => 600, 'author' => 80, 'role' => 120]]],
-        'faq' => ['items' => [30, ['q' => 200, 'a' => 1500]]],
+        'testimonials' => ['items' => [12, ['quote' => 600, 'quote_ar' => 600, 'author' => 80, 'role' => 120, 'role_ar' => 120]]],
+        'faq' => ['items' => [30, ['q' => 200, 'q_ar' => 200, 'a' => 1500, 'a_ar' => 1500]]],
     ];
 
     private const REQUIRED = [
@@ -121,7 +121,7 @@ final class HomeSections
      *
      * @return list<array<string, mixed>>
      */
-    public static function public(mixed $stored): array
+    public static function public(mixed $stored, ?string $locale = null): array
     {
         try {
             $sections = self::normalize($stored);
@@ -129,6 +129,7 @@ final class HomeSections
             return [];
         }
 
+        $isAr = ($locale ?? \App\Support\LocaleHelper::current()) === 'ar';
         $out = [];
         foreach ($sections as $s) {
             if (! ($s['data']['enabled'] ?? true)) {
@@ -136,6 +137,29 @@ final class HomeSections
             }
             $data = $s['data'];
             unset($data['enabled']);
+            if ($isAr) {
+                foreach ($data as $k => $v) {
+                    if (str_ends_with($k, '_ar')) {
+                        $baseKey = substr($k, 0, -3);
+                        if (is_string($v) && trim($v) !== '') {
+                            $data[$baseKey] = $v;
+                        }
+                    } elseif (is_array($v)) {
+                        foreach ($v as $idx => $item) {
+                            if (is_array($item)) {
+                                foreach ($item as $ik => $iv) {
+                                    if (str_ends_with($ik, '_ar')) {
+                                        $baseSubKey = substr($ik, 0, -3);
+                                        if (is_string($iv) && trim($iv) !== '') {
+                                            $data[$k][$idx][$baseSubKey] = $iv;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             $out[] = ['type' => $s['type']] + $data;
         }
 

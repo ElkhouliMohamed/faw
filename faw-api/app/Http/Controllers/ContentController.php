@@ -21,7 +21,7 @@ class ContentController extends Controller
 
     protected function fields(): array
     {
-        return ['kind', 'slug', 'title', 'excerpt', 'bodyHtml', 'blocks', 'image', 'seoTitle', 'seoDescription', 'publishedAt', 'updated_at', 'tags', 'categoryId', 'featuredProductId', 'ctaLabel', 'ctaUrl', 'defaultSections'];
+        return ['kind', 'slug', 'title', 'excerpt', 'bodyHtml', 'blocks', 'image', 'seoTitle', 'seoDescription', 'publishedAt', 'updated_at', 'tags', 'categoryId', 'featuredProductId', 'ctaLabel', 'ctaUrl', 'defaultSections', 'title_ar', 'excerpt_ar', 'bodyHtml_ar', 'seoTitle_ar', 'seoDescription_ar', 'ctaLabel_ar'];
     }
 
     public function show(string $kind, string $slug)
@@ -85,6 +85,7 @@ class ContentController extends Controller
         foreach (array_keys(SiteMenu::LOCATIONS) as $location) {
             $menus[$location] = null;
         }
+        $loc = \App\Support\LocaleHelper::current();
         foreach (SiteMenu::where('active', true)->get() as $menu) {
             try {
                 $items = SiteMenu::normalizeItems($menu->items);
@@ -92,7 +93,10 @@ class ContentController extends Controller
                 $items = [];
             }
             if ($items !== []) {
-                $menus[$menu->location] = ['title' => $this->clean((string) $menu->title), 'items' => array_map(fn ($i) => ['label' => $this->clean($i['label'])] + $i, $items)];
+                $menus[$menu->location] = [
+                    'title' => $this->clean((string) \App\Support\LocaleHelper::trans($menu->title_ar, (string) $menu->title, $loc)),
+                    'items' => array_map(fn ($i) => ['label' => $this->clean((string) \App\Support\LocaleHelper::trans($i['label_ar'] ?? null, $i['label'], $loc))] + $i, $items),
+                ];
             }
         }
 
@@ -128,17 +132,18 @@ class ContentController extends Controller
         if (! $page) {
             return response()->json(['home' => null])->header('Cache-Control', 'no-store');
         }
-        $sections = HomeSections::public($page->getAttributes()['blocks'] ?? '[]');
+        $loc = \App\Support\LocaleHelper::current();
+        $sections = HomeSections::public($page->getAttributes()['blocks'] ?? '[]', $loc);
         $show = PriceVisibility::showOnSite();
 
         return response()->json(['home' => [
-            'title' => $this->clean((string) $page->title),
-            'excerpt' => $page->excerpt !== null ? $this->clean($page->excerpt) : null,
+            'title' => $this->clean((string) \App\Support\LocaleHelper::trans($page->title_ar, (string) $page->title, $loc)),
+            'excerpt' => $page->excerpt !== null ? $this->clean((string) \App\Support\LocaleHelper::trans($page->excerpt_ar, $page->excerpt, $loc)) : null,
             'image' => is_string($page->image) && preg_match(HomeSections::IMAGE, $page->image) ? $page->image : null,
-            'ctaLabel' => $page->ctaLabel !== null ? $this->clean($page->ctaLabel) : null,
+            'ctaLabel' => $page->ctaLabel !== null ? $this->clean((string) \App\Support\LocaleHelper::trans($page->ctaLabel_ar, $page->ctaLabel, $loc)) : null,
             'ctaUrl' => is_string($page->ctaUrl) && preg_match(HomeSections::LINK, $page->ctaUrl) ? $page->ctaUrl : null,
-            'seoTitle' => $page->seoTitle !== null ? $this->clean($page->seoTitle) : null,
-            'seoDescription' => $page->seoDescription !== null ? $this->clean($page->seoDescription) : null,
+            'seoTitle' => $page->seoTitle !== null ? $this->clean((string) \App\Support\LocaleHelper::trans($page->seoTitle_ar, $page->seoTitle, $loc)) : null,
+            'seoDescription' => $page->seoDescription !== null ? $this->clean((string) \App\Support\LocaleHelper::trans($page->seoDescription_ar, $page->seoDescription, $loc)) : null,
             'legacy' => HomeSections::isLegacy($page->getAttributes()['blocks'] ?? '[]'),
             'defaultSections' => (bool) $page->defaultSections,
             'sections' => $show ? $sections : $this->sanitizeBlocks($sections),
@@ -155,6 +160,15 @@ class ContentController extends Controller
     /** @param  array<string, mixed>  $row */
     protected function publicPage(array $row): array
     {
+        $loc = \App\Support\LocaleHelper::current();
+        if ($loc === 'ar') {
+            $row['title'] = \App\Support\LocaleHelper::trans($row['title_ar'] ?? null, $row['title'] ?? '', 'ar');
+            $row['excerpt'] = \App\Support\LocaleHelper::trans($row['excerpt_ar'] ?? null, $row['excerpt'] ?? null, 'ar');
+            $row['bodyHtml'] = \App\Support\LocaleHelper::trans($row['bodyHtml_ar'] ?? null, $row['bodyHtml'] ?? null, 'ar');
+            $row['seoTitle'] = \App\Support\LocaleHelper::trans($row['seoTitle_ar'] ?? null, $row['seoTitle'] ?? null, 'ar');
+            $row['seoDescription'] = \App\Support\LocaleHelper::trans($row['seoDescription_ar'] ?? null, $row['seoDescription'] ?? null, 'ar');
+            $row['ctaLabel'] = \App\Support\LocaleHelper::trans($row['ctaLabel_ar'] ?? null, $row['ctaLabel'] ?? null, 'ar');
+        }
         if (PriceVisibility::showOnSite()) {
             return $row;
         }

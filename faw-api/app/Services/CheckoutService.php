@@ -182,7 +182,7 @@ class CheckoutService
                 'clientType' => $v['clientType'] ?? 'particulier', 'deliveryMode' => $mode, 'deliveryFee' => (int) $shipping['fee'], 'deliveryNote' => $shipping['label'],
                 'paymentMethod' => $method, 'paymentStatus' => $method === 'reception' ? 'a_la_livraison' : 'en_attente', 'cgvAccepted' => true,
                 'notes' => $v['note'] ?? null, 'subtotal' => (int) $priced['total'], 'total' => $total, 'couponCode' => $coupon['code'] ?? null, 'couponDiscount' => (int) ($coupon['discount'] ?? 0),
-                'cartId' => $v['cartId'] ?? null, 'utmSource' => $v['attribution']['utmSource'] ?? null, 'utmMedium' => $v['attribution']['utmMedium'] ?? null, 'utmCampaign' => $v['attribution']['utmCampaign'] ?? null,
+                'cartId' => $v['cartId'] ?? null, 'locale' => $v['locale'] ?? 'fr', 'utmSource' => $v['attribution']['utmSource'] ?? null, 'utmMedium' => $v['attribution']['utmMedium'] ?? null, 'utmCampaign' => $v['attribution']['utmCampaign'] ?? null,
                 'quoteRefusal' => $priced['reasons'] ? implode(' ; ', $priced['reasons']) : null]);
             foreach ($priced['lines'] as $l) {
                 DB::table('OrderItem')->insert(['orderId' => $o->id, 'productId' => $l['id'], 'title' => $l['title'], 'category' => $l['category'], 'unitPrice' => $l['unit'], 'quantity' => $l['qty'], 'lineTotal' => $l['total']]);
@@ -233,9 +233,36 @@ class CheckoutService
             default => '',
         };
         if ($o->email) {
-            $this->mail->send((string) $o->email, 'FAW Aluminium — commande '.$short.' reçue',
-                "Bonjour {$o->customerName},\n\nNous avons bien reçu votre commande {$short}.\n\n{$lines}\n\n{$totals}\n\nPaiement : ".ShopOrder::paymentLabel($method).".\n{$howToPay}\n\n".(string) $o->deliveryNote."\n\nFourniture seule, pose non comprise. Pour toute question, répondez simplement à cet e-mail.\n\nFAW Aluminium — Casablanca",
-                'faw-shop-order-customer-'.$o->id);
+            if ($o->locale === 'ar') {
+                $payLabelAr = match ($method) {
+                    'virement' => 'تحويل بنكي',
+                    'reception' => 'عند الاستلام / في المستودع',
+                    'carte' => 'بطاقة بنكية (CMI)',
+                    default => $method,
+                };
+                $howToPayAr = match ($method) {
+                    'virement' => $this->bankTextAr($paymentRef, $total),
+                    'reception' => "الأداء عند التسليم أو الاستلام: يتم الأداء عند استلام البضاعة. سيتصل بكم فريقنا لتأكيد الطلب وتحديد الموعد.",
+                    'carte' => "الأداء بالبطاقة البنكية (CMI). إذا لم يكتمل الأداء، يمكنك استئنافه من صفحة تأكيد طلبك.",
+                    default => '',
+                };
+                $totalsAr = "المجموع الفرعي : ".self::money((int) $o->subtotal)." شامل الضريبة\n"
+                    .((int) $o->couponDiscount > 0 ? 'رمز التخفيض '.$o->couponCode.' : −'.self::money((int) $o->couponDiscount)."\n" : '')
+                    .'التوصيل : '.((int) $o->deliveryFee > 0 ? self::money((int) $o->deliveryFee).' شامل الضريبة' : ($o->deliveryMode === 'retrait' ? 'استلام مجاني من المستودع' : 'يحدد لاحقاً'))."\n"
+                    .'المجموع دون ضريبة : '.self::money(self::ht($total))."\n"
+                    .'الضريبة على القيمة المضافة '.self::TAX_RATE.' % : '.self::money($total - self::ht($total))."\n"
+                    .'المجموع شامل الضريبة : '.self::money($total);
+
+                $linesAr = $items->map(fn ($i) => '- '.$i->quantity.' × '.$i->title.' ('.$i->productId.') : '.self::money((int) $i->lineTotal).' شامل الضريبة')->implode("\n");
+
+                $this->mail->send((string) $o->email, 'FAW Aluminium — تم استلام الطلب '.$short,
+                    "مرحباً {$o->customerName}،\n\nلقد تم تسجيل طلبكم رقم {$short} بنجاح.\n\n{$linesAr}\n\n{$totalsAr}\n\nطريقة الأداء : {$payLabelAr}.\n{$howToPayAr}\n\nتوريد فقط، التركيب غير مشمول. لأي استفسار، يرجى الرد على هذه الرسالة.\n\nFAW Aluminium — الدار البيضاء",
+                    'faw-shop-order-customer-'.$o->id);
+            } else {
+                $this->mail->send((string) $o->email, 'FAW Aluminium — commande '.$short.' reçue',
+                    "Bonjour {$o->customerName},\n\nNous avons bien reçu votre commande {$short}.\n\n{$lines}\n\n{$totals}\n\nPaiement : ".ShopOrder::paymentLabel($method).".\n{$howToPay}\n\n".(string) $o->deliveryNote."\n\nFourniture seule, pose non comprise. Pour toute question, répondez simplement à cet e-mail.\n\nFAW Aluminium — Casablanca",
+                    'faw-shop-order-customer-'.$o->id);
+            }
         }
         $team = TransactionalMail::teamAddress();
         if ($team) {
@@ -253,6 +280,15 @@ class CheckoutService
         $details = $rows ? implode("\n", array_map(fn ($k, $v) => $k.' : '.$v, array_keys($rows), $rows)) : 'Les coordonnées bancaires vous sont communiquées par l’équipe FAW.';
 
         return "Virement bancaire de ".self::money($total)." :\n{$details}\nIndiquez la référence {$ref} dans le libellé du virement, puis déposez le justificatif depuis la page de confirmation de votre commande (ou répondez à cet e-mail avec le justificatif).";
+    }
+
+    private function bankTextAr(string $ref, int $total): string
+    {
+        $b = CheckoutSettings::bank();
+        $rows = array_filter(['صاحب الحساب' => $b['holder'], 'البنك' => $b['bankName'], 'الوكالة' => $b['branch'], 'RIB' => $b['rib'], 'IBAN' => $b['iban'], 'SWIFT' => $b['swift']]);
+        $details = $rows ? implode("\n", array_map(fn ($k, $v) => $k.' : '.$v, array_keys($rows), $rows)) : 'بيانات الحساب البنكي سيتم إرسالها من طرف فريق FAW.';
+
+        return "تحويل بنكي بمبلغ ".self::money($total)." :\n{$details}\nيرجى كتابة المرجع {$ref} في بيان التحويل، ثم إيداع وصل التحويل في صفحة تأكيد طلبكم (أو الرد على هذه الرسالة مع إرفاق الوصل).";
     }
 
     /** @return array<string, string> */

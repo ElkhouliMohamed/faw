@@ -72,6 +72,19 @@ class CategoryResource extends OwnerResource
                 ])
                 ->columns(2)
                 ->columnSpanFull(),
+            Section::make('Traduction arabe (facultatif)')
+                ->description('Texte affiché lorsque le visiteur consulte le site en arabe.')
+                ->schema([
+                    TextInput::make('label_ar')->label('Nom (arabe)')->maxLength(255)->extraInputAttributes(['dir' => 'rtl']),
+                    TextInput::make('short_ar')->label('Nom court (arabe)')->maxLength(255)->extraInputAttributes(['dir' => 'rtl']),
+                    TextInput::make('h1_ar')->label('Titre H1 (arabe)')->maxLength(120)->extraInputAttributes(['dir' => 'rtl']),
+                    TextInput::make('seoTitle_ar')->label('Titre SEO (arabe)')->maxLength(255)->extraInputAttributes(['dir' => 'rtl']),
+                    Textarea::make('description_ar')->label('Description (arabe)')->rows(4)->columnSpanFull()->extraInputAttributes(['dir' => 'rtl']),
+                    Textarea::make('seoDescription_ar')->label('Description SEO (arabe)')->rows(3)->maxLength(320)->columnSpanFull()->extraInputAttributes(['dir' => 'rtl']),
+                ])
+                ->columns(2)
+                ->columnSpanFull()
+                ->collapsible(),
         ]);
     }
 

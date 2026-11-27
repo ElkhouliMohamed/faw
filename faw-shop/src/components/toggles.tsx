@@ -39,11 +39,19 @@ export function LocaleToggle({ className }: { className?: string }) {
       disabled={pending}
       onClick={() =>
         start(async () => {
-          await setLocale(locale === "fr" ? "ar" : "fr");
-          // ?lang=ar|fr dans l'URL prime sur le cookie (alternates hreflang) : on le retire, puis
-          // rechargement complet. router.refresh() pouvait rejouer l'ancienne URL ?lang=ar gardée par
-          // le routeur (ex. après history.replaceState des filtres boutique) et rester bloqué en arabe.
+          const next = locale === "fr" ? "ar" : "fr";
+          await setLocale(next);
+          const p = window.location.pathname;
+          let newPath = p;
+          if (p.startsWith("/fr/") || p === "/fr") {
+            newPath = `/${next}${p.slice(3)}`;
+          } else if (p.startsWith("/ar/") || p === "/ar") {
+            newPath = `/${next}${p.slice(3)}`;
+          } else {
+            newPath = `/${next}${p === "/" ? "" : p}`;
+          }
           const u = new URL(window.location.href);
+          u.pathname = newPath || `/${next}`;
           u.searchParams.delete("lang");
           window.location.replace(u.pathname + u.search + u.hash);
         })

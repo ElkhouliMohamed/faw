@@ -2,11 +2,14 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { spamCheck } from "@/lib/security";
+import { getLocale } from "@/lib/i18n-server";
+
 export type QuoteFormState =
   | { ok: false; message?: string; errors?: Record<string, string>; refused?: false }
   | { ok: false; refused: true; message: string; wa: string }
   | null;
 export async function createQuote(_prev: QuoteFormState, fd: FormData): Promise<QuoteFormState> {
+  const locale = await getLocale().catch(() => "fr");
   const spam = await spamCheck(fd, "quote");
   if (!spam.ok) return { ok: false, message: spam.message };
   let items: unknown;
@@ -17,6 +20,7 @@ export async function createQuote(_prev: QuoteFormState, fd: FormData): Promise<
   let attribution: Record<string, unknown> = {};
   try { attribution = JSON.parse(String(fd.get("attribution") || "{}")); } catch {}
   const payload = { attribution,
+    locale,
     name: fd.get("name"), clientType: fd.get("clientType") || "particulier", company: fd.get("company"),
     ice: fd.get("ice") || null, email: fd.get("email") || null,
     phone: /^[5-7]\d{8}$/.test(phone) ? `0${phone}` : phone,
@@ -36,5 +40,5 @@ export async function createQuote(_prev: QuoteFormState, fd: FormData): Promise<
     }
     token = z.object({ token: z.string().regex(/^[\w-]{32}$/) }).parse(await response.json()).token;
   } catch { return { ok: false, message: "Service momentanément indisponible. Merci de réessayer." }; }
-  redirect(`/devis/confirmation/${token}`);
+  redirect(`/${locale}/devis/confirmation/${token}`);
 }

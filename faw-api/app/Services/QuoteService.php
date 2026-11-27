@@ -216,10 +216,17 @@ class QuoteService
         if (str_contains($reply, '<') && preg_match('/<([^>]+)>/', $reply, $m)) {
             $reply = trim($m[1]);
         }
-        $subject = 'Votre devis FAW n° '.$number;
-        $headerLines = array_values(array_filter(['FAW Aluminium', $address !== '' ? $address : null, $phone !== '' ? 'Tél. '.$phone : null]));
-        $signLines = array_values(array_filter([$commercial, 'Service commercial — FAW Aluminium', $phone !== '' ? 'Tél. '.$phone : null, $reply]));
-        $text = implode("\n", $headerLines)."\n\nBonjour ".$name.",\n\nVeuillez trouver ci-joint votre devis FAW Aluminium n° ".$number.".\nTotal : ".$total." DH TTC (TVA 20 % incluse), valable 14 jours.\nRemise 0 %. Transport en option hors total. Installation non incluse. Pose non comprise.\n\nPour confirmer ou poser une question, répondez à cet e-mail.\n\n".implode("\n", $signLines);
+        $isAr = ($q->locale === 'ar');
+        $subject = $isAr ? 'عرض السعر الخاص بكم من FAW رقم '.$number : 'Votre devis FAW n° '.$number;
+        if ($isAr) {
+            $headerLines = array_values(array_filter(['FAW Aluminium', $address !== '' ? $address : null, $phone !== '' ? 'الهاتف : '.$phone : null]));
+            $signLines = array_values(array_filter([$commercial, 'المصلحة التجارية — FAW Aluminium', $phone !== '' ? 'الهاتف : '.$phone : null, $reply]));
+            $text = implode("\n", $headerLines)."\n\nمرحباً ".$name."،\n\nتجدون رفقته عرض السعر الخاص بكم من FAW Aluminium رقم ".$number.".\nالمجموع : ".$total." درهم شامل الضريبة (TVA 20 %)، صالح لمدة 14 يوماً.\nالتوصيل اختياري خارج المجموع. التركيب غير مشمول.\n\nلتأكيد العرض أو لأي استفسار، يرجى الرد على هذه الرسالة.\n\n".implode("\n", $signLines);
+        } else {
+            $headerLines = array_values(array_filter(['FAW Aluminium', $address !== '' ? $address : null, $phone !== '' ? 'Tél. '.$phone : null]));
+            $signLines = array_values(array_filter([$commercial, 'Service commercial — FAW Aluminium', $phone !== '' ? 'Tél. '.$phone : null, $reply]));
+            $text = implode("\n", $headerLines)."\n\nBonjour ".$name.",\n\nVeuillez trouver ci-joint votre devis FAW Aluminium n° ".$number.".\nTotal : ".$total." DH TTC (TVA 20 % incluse), valable 14 jours.\nRemise 0 %. Transport en option hors total. Installation non incluse. Pose non comprise.\n\nPour confirmer ou poser une question, répondez à cet e-mail.\n\n".implode("\n", $signLines);
+        }
         $esc = fn ($s) => htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $logo = EmailSettings::logoPath();
         $logoCell = $logo
@@ -230,16 +237,26 @@ class QuoteService
             $meta .= '<div style="margin-top:6px;">'.$esc($address).'</div>';
         }
         if ($phone !== '') {
-            $meta .= '<div style="margin-top:4px;">Tél. '.$esc($phone).'</div>';
+            $meta .= '<div style="margin-top:4px;">'.($isAr ? 'الهاتف : ' : 'Tél. ').$esc($phone).'</div>';
         }
-        $signHtml = '<p style="margin:20px 0 0;font-weight:bold;color:#432A13;">'.$esc($commercial).'</p><p style="margin:4px 0 0;color:#432A13;">Service commercial — FAW Aluminium</p>';
+        $signHtml = '<p style="margin:20px 0 0;font-weight:bold;color:#432A13;">'.$esc($commercial).'</p><p style="margin:4px 0 0;color:#432A13;">'.($isAr ? 'المصلحة التجارية — FAW Aluminium' : 'Service commercial — FAW Aluminium').'</p>';
         if ($phone !== '') {
-            $signHtml .= '<p style="margin:4px 0 0;color:#432A13;">Tél. '.$esc($phone).'</p>';
+            $signHtml .= '<p style="margin:4px 0 0;color:#432A13;">'.($isAr ? 'الهاتف : ' : 'Tél. ').$esc($phone).'</p>';
         }
         if ($reply !== '') {
             $signHtml .= '<p style="margin:4px 0 0;color:#432A13;">'.$esc($reply).'</p>';
         }
-        $html = '<!doctype html><html lang="fr"><body style="margin:0;padding:0;background:#f7f3ee;font-family:Arial,Helvetica,sans-serif;color:#432A13;">'
+        $bodyHtmlP = $isAr
+            ? '<p style="margin:0 0 16px;">مرحباً '.$esc($name).'،</p>'
+              .'<p style="margin:0 0 16px;">تجدون رفقته عرض السعر الخاص بكم من FAW Aluminium رقم&nbsp;<strong>'.$esc($number).'</strong>.</p>'
+              .'<p style="margin:0 0 16px;">المجموع : <strong>'.$esc($total).' درهم شامل الضريبة</strong> (TVA 20&nbsp;%)، صالح لمدة 14 يوماً.<br>التوصيل اختياري خارج المجموع. التركيب غير مشمول.</p>'
+              .'<p style="margin:0;">لتأكيد العرض أو لأي استفسار، يرجى الرد على هذه الرسالة.</p>'
+            : '<p style="margin:0 0 16px;">Bonjour '.$esc($name).',</p>'
+              .'<p style="margin:0 0 16px;">Veuillez trouver ci-joint votre devis FAW Aluminium n°&nbsp;<strong>'.$esc($number).'</strong>.</p>'
+              .'<p style="margin:0 0 16px;">Total : <strong>'.$esc($total).' DH TTC</strong> (TVA 20&nbsp;% incluse), valable 14 jours.<br>Remise 0&nbsp;%. Transport en option hors total. Installation non incluse. Pose non comprise.</p>'
+              .'<p style="margin:0;">Pour confirmer ou poser une question, répondez à cet e-mail.</p>';
+        $htmlDir = $isAr ? 'dir="rtl" lang="ar"' : 'dir="ltr" lang="fr"';
+        $html = '<!doctype html><html '.$htmlDir.'><body style="margin:0;padding:0;background:#f7f3ee;font-family:Arial,Helvetica,sans-serif;color:#432A13;">'
             .'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f3ee;border-collapse:collapse;"><tr><td align="center" style="padding:24px 12px;">'
             .'<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;background:#ffffff;border-collapse:collapse;">'
             .'<tr><td style="background:#ffffff;padding:20px 24px 16px;border-top:4px solid #F38F26;border-bottom:1px solid #eadfd3;">'
@@ -248,10 +265,7 @@ class QuoteService
             .'<td valign="middle" style="color:#432A13;font-size:13px;line-height:1.45;">'.$meta.'</td>'
             .'</tr></table></td></tr>'
             .'<tr><td style="padding:28px 24px 8px;color:#432A13;font-size:15px;line-height:1.55;">'
-            .'<p style="margin:0 0 16px;">Bonjour '.$esc($name).',</p>'
-            .'<p style="margin:0 0 16px;">Veuillez trouver ci-joint votre devis FAW Aluminium n°&nbsp;<strong>'.$esc($number).'</strong>.</p>'
-            .'<p style="margin:0 0 16px;">Total : <strong>'.$esc($total).' DH TTC</strong> (TVA 20&nbsp;% incluse), valable 14 jours.<br>Remise 0&nbsp;%. Transport en option hors total. Installation non incluse. Pose non comprise.</p>'
-            .'<p style="margin:0;">Pour confirmer ou poser une question, répondez à cet e-mail.</p>'
+            .$bodyHtmlP
             .'</td></tr>'
             .'<tr><td style="padding:8px 24px 28px;color:#432A13;font-size:14px;line-height:1.5;border-top:1px solid #F38F26;">'.$signHtml.'</td></tr>'
             .'</table></td></tr></table></body></html>';

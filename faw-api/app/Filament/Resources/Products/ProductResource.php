@@ -179,6 +179,19 @@ class ProductResource extends OwnerResource
                             ])
                             ->columns(2),
                     ]),
+                    Tab::make('Traduction arabe')->icon('heroicon-o-language')->schema([
+                        Section::make('Contenu en arabe (facultatif)')
+                            ->description('Texte affiché lorsque le visiteur consulte le site en arabe. Si un champ est vide, le site affiche le texte français.')
+                            ->schema([
+                                TextInput::make('title_ar')->label('Nom (arabe)')->maxLength(255)->extraInputAttributes(['dir' => 'rtl']),
+                                TextInput::make('h1_ar')->label('Titre H1 (arabe)')->maxLength(120)->extraInputAttributes(['dir' => 'rtl']),
+                                Textarea::make('shortDescription_ar')->label('Description courte (arabe)')->rows(3)->maxLength(5000)->columnSpanFull()->extraInputAttributes(['dir' => 'rtl']),
+                                Textarea::make('description_ar')->label('Description (arabe)')->rows(6)->maxLength(5000)->columnSpanFull()->extraInputAttributes(['dir' => 'rtl']),
+                                TextInput::make('seoTitle_ar')->label('Titre catalogue (arabe)')->maxLength(255)->extraInputAttributes(['dir' => 'rtl']),
+                                Textarea::make('seoDescription_ar')->label('Description SEO (arabe)')->rows(3)->maxLength(320)->columnSpanFull()->extraInputAttributes(['dir' => 'rtl']),
+                            ])
+                            ->columns(2),
+                    ]),
                 ]),
         ]);
     }

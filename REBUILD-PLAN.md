@@ -24,8 +24,8 @@ Turn faw.ma (B2B aluminium, fire doors, automation — Casablanca, Morocco) from
 |---|---|---|---|
 | 1 | PostgreSQL + Docker dev stack; shop API-only; old Next admin and Prisma removed; `faw:import-sqlite` command | ✅ done | `8430798` |
 | 2 | Filament full-page CRUD (42 resources); orders + quotes kanban; KPI dashboard | ✅ done | `36f1113` |
-| 3 | Hybrid e-commerce (price mode, cart, checkout, payments, quote request); CMS-driven home/menus; responsive; caching + revalidation | ⏳ in progress | — |
-| 4 | FR/AR i18n with RTL; translatable content in Filament | ⬜ todo | — |
+| 3 | Hybrid e-commerce (price mode, cart, checkout, payments, quote request); CMS-driven home/menus; responsive; caching + revalidation | ✅ done | `e05bf6a` |
+| 4 | FR/AR i18n with RTL; translatable content in Filament | ⏳ in progress | — |
 | 5 | Local SEO Casablanca/Morocco; Google Tag Manager; Meta Pixel | ⬜ todo | — |
 | 6 | Claude-powered AI helper in Filament (products, blog posts) | ⬜ todo | — |
 

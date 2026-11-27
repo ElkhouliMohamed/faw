@@ -56,11 +56,21 @@ class SiteMenu extends ShopModel
         }
         $out = [];
         foreach ($items as $item) {
-            $row = ['label' => trim((string) ($item['label'] ?? '')), 'url' => trim((string) ($item['url'] ?? '')), 'newTab' => (bool) ($item['newTab'] ?? false), 'highlight' => (bool) ($item['highlight'] ?? false)];
-            Validator::make($row, ['label' => 'required|string|max:60', 'url' => ['required', 'string', 'max:500', 'regex:'.self::LINK]], [
+            $row = [
+                'label' => trim((string) ($item['label'] ?? '')),
+                'label_ar' => trim((string) ($item['label_ar'] ?? '')),
+                'url' => trim((string) ($item['url'] ?? '')),
+                'newTab' => (bool) ($item['newTab'] ?? false),
+                'highlight' => (bool) ($item['highlight'] ?? false),
+            ];
+            Validator::make($row, [
+                'label' => 'required|string|max:60',
+                'label_ar' => 'nullable|string|max:60',
+                'url' => ['required', 'string', 'max:500', 'regex:'.self::LINK],
+            ], [
                 'url.regex' => 'Lien interne commençant par /, adresse https://, tel: ou mailto:.',
             ])->validate();
-            $out[] = $row;
+            $out[] = array_filter($row, fn ($val, $k) => $k !== 'label_ar' || ($val !== '' && $val !== null), ARRAY_FILTER_USE_BOTH);
         }
 
         return $out;
